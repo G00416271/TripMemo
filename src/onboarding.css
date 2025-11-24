@@ -1,0 +1,92 @@
+.onboard-container {
+  width: min(390px, 100vw - 32px);
+  height: min(780px, 100vh - 32px);
+  background: white;
+  border-radius: 32px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.onboard-image-wrapper {
+  width: 100%;
+  height: 320px;
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.onboard-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.onboard-title {
+  margin-top: 26px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.onboard-subtitle {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #777;
+  text-align: center;
+}
+
+.onboard-footer {
+  position: absolute;
+  bottom: 30px;
+  width: calc(100% - 60px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.onboard-skip {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.onboard-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.onboard-dot {
+  width: 8px;
+  height: 8px;
+  background: #ccc;
+  border-radius: 50%;
+}
+
+.onboard-dot.active {
+  width: 22px;
+  border-radius: 10px;
+  background: #ff0055;
+}
+
+.onboard-next,
+.onboard-start {
+  background: #ff0055;
+  border: none;
+  color: white;
+  border-radius: 25px;
+  width: 45px;
+  height: 45px;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.onboard-start {
+  padding: 10px 16px;
+  width: auto;
+  font-size: 15px;
+}
