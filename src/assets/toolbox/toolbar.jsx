@@ -11,18 +11,23 @@ function Tools({ tool, setTool }) {
         color: "black",
         textAlign: "start",
         position: "fixed",
-        top: "25%",
-        width: "10%",
+
+        // Dynamically scale with screen size
+        top: "clamp(5%, 15%, 25%)",
+        width: "clamp(15%, 10%, 15%)",
+        left: "clamp(1%, 1vw, 20px)",
+
         zIndex: 1000,
         backgroundColor: "#ffffff",
         boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
         margin: 0,
-        left: "4px",
         borderRadius: "10pt",
-        padding: "10px",
+
+        // Responsive spacing
+        padding: "clamp(8px, 1vw, 14px)",
         display: "flex",
         flexDirection: "column",
-        gap: "30px",
+        gap: "clamp(16px, 3vw, 30px)",
       }}
     >
       {["selection", "line", "rectangle", "pencil", "text"].map((icon) => (
@@ -45,7 +50,7 @@ function Tools({ tool, setTool }) {
           <img
             src={tbi(icon)}
             alt={`${icon} icon`}
-            style={{ width: 40, height: 40 }}
+            style={{ width: "clamp(20px, 20px, 80px)", height: "auto" }}
           />
           <span style={{ fontSize: "16px", paddingLeft: "4px" }}>
             {icon.charAt(0).toUpperCase() + icon.slice(1)}
