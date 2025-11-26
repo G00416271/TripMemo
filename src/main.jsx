@@ -1,24 +1,25 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import Create from './assets/create.jsx'
-import InfiniteCanvas from './assets/canvas.jsx';
+import Create from './assets/create.jsx';
+import App from './assets/canvas1.jsx';
 import Tools from './assets/toolbox/toolbar.jsx';
+import '../index.css'; 
+import TestGemini from "./assets/test.jsx";
 
- document.oncontextmenu = function () {
-            return false;
-        }
-
-
+document.oncontextmenu = () => false;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-<div id="navbar">
-  <Create/>
-</div>
-  <body>
-    <Tools/>
-    <InfiniteCanvas/>
-  </body>
-  </StrictMode>,
+
+    <div id="navbar">
+      <Create/>
+    </div>
+
+    <body>
+      <Tools/>
+      <App/>     
+    </body>
+
+  </StrictMode>
 )
