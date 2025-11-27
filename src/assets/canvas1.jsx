@@ -1,13 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import getStroke from "perfect-freehand"; 
+import getStroke from "perfect-freehand";
 import Tools from "./toolbox/toolbar.jsx";
 import SizeBadge from "./toolbox/UIElements.jsx";
-
-
-
-
-
-
 
 // --------- helpers to build elements ---------
 const createElement = (id, x1, y1, x2, y2, type) => {
@@ -28,7 +22,6 @@ const createElement = (id, x1, y1, x2, y2, type) => {
       throw new Error(`Type not recognised: ${type}`);
   }
 };
-
 
 const nearPoint = (x, y, x1, y1, name) =>
   Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
@@ -58,8 +51,7 @@ const positionWithinElement = (x, y, element) => {
       const topRight = nearPoint(x, y, x2, y1, "tr");
       const bottomLeft = nearPoint(x, y, x1, y2, "bl");
       const bottomRight = nearPoint(x, y, x2, y2, "br");
-      const inside =
-        x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
+      const inside = x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
       return topLeft || topRight || bottomLeft || bottomRight || inside;
     }
     case "pencil": {
@@ -67,15 +59,7 @@ const positionWithinElement = (x, y, element) => {
         const nextPoint = element.points[index + 1];
         if (!nextPoint) return false;
         return (
-          onLine(
-            point.x,
-            point.y,
-            nextPoint.x,
-            nextPoint.y,
-            x,
-            y,
-            5
-          ) != null
+          onLine(point.x, point.y, nextPoint.x, nextPoint.y, x, y, 5) != null
         );
       });
       return betweenAnyPoint ? "inside" : null;
@@ -145,8 +129,6 @@ const resizedCoordinates = (clientX, clientY, position, coordinates) => {
   }
 };
 
-
-
 // --------- history hook ---------
 const useHistory = (initialState) => {
   const [index, setIndex] = useState(0);
@@ -167,8 +149,7 @@ const useHistory = (initialState) => {
   };
 
   const undo = () => index > 0 && setIndex((prev) => prev - 1);
-  const redo = () =>
-    index < history.length - 1 && setIndex((prev) => prev + 1);
+  const redo = () => index < history.length - 1 && setIndex((prev) => prev + 1);
 
   return [history[index], setState, undo, redo];
 };
@@ -287,7 +268,7 @@ const App = () => {
     context.scale(scale, scale);
 
     elements.forEach((element) => {
-      if (action === "writing" && selectedElement?.id === element.id) return;
+      if (action === "text" && selectedElement?.id === element.id) return;
       drawElement(context, element);
     });
 
@@ -307,18 +288,18 @@ const App = () => {
     return () => document.removeEventListener("keydown", undoRedoFunction);
   }, [undo, redo]);
 
-//   // pan with wheel
-//   useEffect(() => {
-//     const panFunction = (event) => {
-//       setPanOffset((prev) => ({
-//         x: prev.x - event.deltaX,
-//         y: prev.y - event.deltaY,
-//       }));
-//     };
+  //   // pan with wheel
+  //   useEffect(() => {
+  //     const panFunction = (event) => {
+  //       setPanOffset((prev) => ({
+  //         x: prev.x - event.deltaX,
+  //         y: prev.y - event.deltaY,
+  //       }));
+  //     };
 
-//     document.addEventListener("wheel", panFunction);
-//     return () => document.removeEventListener("wheel", panFunction);
-//   }, []);
+  //     document.addEventListener("wheel", panFunction);
+  //     return () => document.removeEventListener("wheel", panFunction);
+  //   }, []);
 
   // focus textarea when writing starts
   useEffect(() => {
@@ -350,21 +331,24 @@ const App = () => {
 
       case "text": {
         const canvas = document.getElementById("canvas");
-        if (!canvas) break;
-        const ctx = canvas.getContext("2d");
-        ctx.font = "24px sans-serif";
+        const ctx = canvas?.getContext("2d");
+        if (ctx) {
+          ctx.font = "24px 'Kalam', cursive";
+          const text = options.text ?? elementsCopy[elIndex].text ?? "";
+          const textWidth = ctx.measureText(text).width;
+          const textHeight = 24; // approximate height for font
 
-        const text = options.text ?? "";
-        const textWidth = ctx.measureText(text).width;
-        const textHeight = 24;
-
-        elementsCopy[id] = {
-          ...createElement(id, x1, y1, x1 + textWidth, y1 + textHeight, type),
-          text,
-        };
+          elementsCopy[elIndex] = {
+            ...elementsCopy[elIndex],
+            x1,
+            y1,
+            x2: x1 + textWidth,
+            y2: y1 + textHeight,
+            text,
+          };
+        }
         break;
       }
-
       default:
         throw new Error(`Type not recognised: ${type}`);
     }
@@ -384,7 +368,7 @@ const App = () => {
     const { clientX, clientY } = getMouseCoordinates(event);
 
     // middle mouse / space + drag = pan
-    if (event.button === 2 || pressedKeys.has(" ")) {
+    if (event.button === 2 || pressedKeys.has(" ") || event.shiftKey) {
       setAction("panning");
       setStartPanMousePosition({ x: clientX, y: clientY });
       return;
@@ -409,7 +393,14 @@ const App = () => {
       }
     } else {
       const id = elements.length;
-      const element = createElement(id, clientX, clientY, clientX, clientY, tool);
+      const element = createElement(
+        id,
+        clientX,
+        clientY,
+        clientX,
+        clientY,
+        tool
+      );
       setElements((prev) => [...prev, element]);
       setSelectedElement(element);
       setAction(tool === "text" ? "writing" : "drawing");
@@ -422,6 +413,7 @@ const App = () => {
     if (action === "panning") {
       const deltaX = clientX - startPanMousePosition.x;
       const deltaY = clientY - startPanMousePosition.y;
+
       setPanOffset({
         x: panOffset.x + deltaX,
         y: panOffset.y + deltaY,
@@ -453,16 +445,7 @@ const App = () => {
         };
         setElements(elementsCopy, true);
       } else {
-        const {
-          id,
-          x1,
-          x2,
-          y1,
-          y2,
-          type,
-          offsetX,
-          offsetY,
-        } = selectedElement;
+        const { id, x1, x2, y1, y2, type, offsetX, offsetY } = selectedElement;
         const width = x2 - x1;
         const height = y2 - y1;
         const newX1 = clientX - offsetX;
@@ -493,22 +476,35 @@ const App = () => {
 
   const handleMouseUp = () => {
     if (selectedElement) {
-      const index = selectedElement.id;
-      const { id, type } = elements[index];
-      if (
-        (action === "drawing" || action === "resizing") &&
-        adjustmentRequired(type)
-      ) {
-        const { x1, y1, x2, y2 } = adjustElementCoordinates(elements[index]);
-        updateElement(id, x1, y1, x2, y2, type);
+      if (selectedElement.type === "text" && action === "drawing") {
+        setAction("writing");
+        return;
+      }
+
+      const index = elements.findIndex((e) => e.id === selectedElement.id);
+      if (index !== -1) {
+        const element = elements[index];
+        if (
+          (action === "drawing" || action === "resizing") &&
+          adjustmentRequired(element.type)
+        ) {
+          const { x1, y1, x2, y2 } = adjustElementCoordinates(element);
+          updateElement(element.id, x1, y1, x2, y2, element.type);
+        }
       }
     }
 
-    if (action === "writing") return; // keep textarea active
+    if (action === "writing") return;
 
     setAction("none");
     setSelectedElement(null);
   };
+
+  // const handleMouseDown = (event) => {
+  //   if (action === "writing") return;
+
+  //   const { clientX: rawX, clientY: rawY } = getRawMouseCoordinates(event);
+  //   const { clientX, clientY } = getMouseCoordinates(event);
 
   const handleBlur = (event) => {
     if (!selectedElement) return;
@@ -532,110 +528,44 @@ const App = () => {
   };
 
   useEffect(() => {
-  const handleWheel = (event) => {
-    event.preventDefault();
+    const handleWheel = (event) => {
+      event.preventDefault();
 
-    const zoomIntensity = 0.0005; // speed of zoom
-    const delta = event.deltaY;
+      const zoomIntensity = 0.0005; // speed of zoom
+      const delta = event.deltaY;
 
-    // get mouse position relative to canvas
-    const mouseX = event.clientX;
-    const mouseY = event.clientY;
+      // get mouse position relative to canvas
+      const mouseX = event.clientX;
+      const mouseY = event.clientY;
 
-    // compute zoom
-    const newScale = scale - delta * zoomIntensity;
+      // compute zoom
+      const newScale = scale - delta * zoomIntensity;
 
-    // clamp scale (optional)
-    const clampedScale = Math.min(Math.max(newScale, 0.2), 4);
+      // clamp scale (optional)
+      const clampedScale = Math.min(Math.max(newScale, 0.2), 4);
 
-    // adjust pan so zoom stays centered under mouse
-    const scaleFactor = clampedScale / scale;
+      // adjust pan so zoom stays centered under mouse
+      const scaleFactor = clampedScale / scale;
 
-    setPanOffset((prev) => ({
-      x: mouseX - (mouseX - prev.x) * scaleFactor,
-      y: mouseY - (mouseY - prev.y) * scaleFactor,
-    }));
+      setPanOffset((prev) => ({
+        x: mouseX - (mouseX - prev.x) * scaleFactor,
+        y: mouseY - (mouseY - prev.y) * scaleFactor,
+      }));
 
-    setScale(clampedScale);
-  };
+      setScale(clampedScale);
+    };
 
-  window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("wheel", handleWheel, { passive: false });
 
-  return () => {
-    window.removeEventListener("wheel", handleWheel);
-  };
-}, [scale]);
-
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, [scale]);
 
   return (
     <div>
-
       <Tools tool={tool} setTool={setTool} />
       <SizeBadge scale={scale} setScale={setScale} />
-
-      
-
-{/*       
-
-      <div style={{ position: "fixed", zIndex: 2, background: "#fff" }}>
-        <input
-          type="radio"
-          id="selection"
-          checked={tool === "selection"}
-          onChange={() => setTool("selection")}
-        />
-        <label htmlFor="selection">Selection</label>
-
-        <input
-          type="radio"
-          id="line"
-          checked={tool === "line"}
-          onChange={() => setTool("line")}
-        />
-        <label htmlFor="line">Line</label>
-
-        <input
-          type="radio"
-          id="rectangle"
-          checked={tool === "rectangle"}
-          onChange={() => setTool("rectangle")}
-        />
-        <label htmlFor="rectangle">Rectangle</label>
-
-        <input
-          type="radio"
-          id="pencil"
-          checked={tool === "pencil"}
-          onChange={() => setTool("pencil")}
-        />
-        <label htmlFor="pencil">Pencil</label>
-
-        <input
-          type="radio"
-          id="
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          "
-          checked={tool === "text"}
-          onChange={() => setTool("text")}
-        />
-        <label htmlFor="text">Text</label>
-      </div> */}
 
       {/* Undo / redo */}
       <div style={{ position: "fixed", zIndex: 2, bottom: 0, padding: 10 }}>
@@ -643,30 +573,26 @@ const App = () => {
         <button onClick={redo}>Redo</button>
       </div>
 
-      {/* Text editor */}
-      {action === "writing" && selectedElement ? (
+      {/* Text Editor Overlay */}
+       {action === "writing" && selectedElement ? (
         <textarea
           ref={textAreaRef}
           onBlur={handleBlur}
+          className="fixed m-0 p-0 border-0 outline-none resize-none overflow-hidden bg-transparent whitespace-pre text-slate-800"
           style={{
-            position: "fixed",
-            top: selectedElement.y1 - 2 + panOffset.y,
-            left: selectedElement.x1 + panOffset.x,
-            font: "24px sans-serif",
-            margin: 0,
-            padding: 0,
-            border: 0,
-            outline: 0,
-            resize: "none",        // prevent layout loops
-            overflow: "visible",
-            whiteSpace: "pre",
-            background: "transparent",
-            zIndex: 2,
+            top: (selectedElement.y1 * scale) + panOffset.y,
+            left: (selectedElement.x1 * scale) + panOffset.x,
+            font: `normal ${24 * scale}px 'helvetica', cursive`,
+            color: "#1e293b",
+            lineHeight: 1,
+            // Calculate width based on text or default
+            width: (selectedElement.x2 - selectedElement.x1) * scale + 50 + "px",
+            height: (selectedElement.y2 - selectedElement.y1) * scale + 50 + "px",
+            zIndex: 100,
           }}
         />
       ) : null}
 
-      {/* Canvas */}
       <canvas
         id="canvas"
         width={window.innerWidth}
@@ -674,10 +600,32 @@ const App = () => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        style={{ position: "absolute", zIndex: 1 }}
-      >
-        Canvas
-      </canvas>
+        style={{
+          position: "absolute",
+          zIndex: 1,
+        }}
+      ></canvas>
+
+      {/* Dot Grid Overlay */}
+      <div
+        className="dot-grid"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, #a1a1a1ff 1px, transparent 1px)",
+          // scale the grid spacing with the canvas scale so it stays consistent
+          backgroundSize: `${20 * scale}px ${20 * scale}px`,
+          position: "absolute",
+          top: -5000,
+          left: -5000,
+          width: 10000,
+          height: 10000,
+          pointerEvents: "none",
+          zIndex: 0,
+          transformOrigin: "0 0",
+          // Always move & scale the grid to match the canvas pan/zoom
+          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${scale})`,
+        }}
+      ></div>
     </div>
   );
 };
