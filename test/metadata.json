@@ -1,0 +1,4 @@
+{
+  "name": "Localhost File Uplink",
+  "description": "A streamlined tool to upload files to a local Node.js server and visualize the response."
+}
