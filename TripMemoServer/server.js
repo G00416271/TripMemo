@@ -4,7 +4,8 @@ import cors from 'cors';
 import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
-import processImages from './dataScraper.js';
+import processImages from './DataScraper.js';
+import getInterests from './InterestReq.js';
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -54,6 +55,17 @@ app.post("/process-images", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: "Processing failed" });
   }
 });
+
+app.post("/interestReq", upload.none(), async (req, res) => {
+  try {
+    const result = await getInterests(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error("Error in /interestReq route:", err);
+    res.status(500).json({ error: "Processing failed" });
+  }
+});
+
 
 
 // Start server
