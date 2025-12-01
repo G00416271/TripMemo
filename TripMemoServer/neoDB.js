@@ -1,55 +1,59 @@
 // eyreSquareQuery.js
-
 import neo4j from "neo4j-driver";
 
 // --- CONFIGURE CONNECTION ---
-// Replace these with your actual Neo4j credentials
 const URI = "neo4j://127.0.0.1:7687";
 const USER = "neo4j";
 const PASSWORD = "TripMemoGalway";
 
-// Create the driver instance
 const driver = neo4j.driver(URI, neo4j.auth.basic(USER, PASSWORD));
 
-async function getEyreSquareRelatedNodes() {
+export default async function getNodes(tags = []) {
   const session = driver.session();
 
   try {
-    // Query: find Eyre Square, all directly related nodes, and nodes connected to those related nodes (up to 2 hops)
+    // Ensure tags is an array
+    if (!Array.isArray(tags)) {
+      tags = [tags];
+    }
+
+    // MAIN QUERY:
+    // Find all nodes with a name matching ANY tag
+    // Find 1-hop and 2-hop related nodes
     const query = `
-      MATCH (e {name: "Lava Lana"})
+      UNWIND $tags AS tag
+      MATCH (e {name: tag})
       OPTIONAL MATCH (e)-[r]-(related)
       OPTIONAL MATCH (related)-[r2]-(related2)
       RETURN e, r, related, r2, related2
     `;
 
-    const result = await session.run(query);
+    const result = await session.run(query, { tags });
 
-    // Convert Neo4j objects → JSON (handle optional second-hop results)
+    // Format
     const formatted = result.records.map(record => ({
-      eyreSquare: record.get("e") ? record.get("e").properties : null,
-      relationship: record.get("r") ? record.get("r").type : null,
-      relatedNode: record.get("related") ? record.get("related").properties : null,
-      relationship2: record.get("r2") ? record.get("r2").type : null,
-      relatedNode2: record.get("related2") ? record.get("related2").properties : null
+      node: record.get("e")?.properties ?? null,
+      relationship1: record.get("r")?.type ?? null,
+      relatedNode1: record.get("related")?.properties ?? null,
+      relationship2: record.get("r2")?.type ?? null,
+      relatedNode2: record.get("related2")?.properties ?? null,
     }));
 
     return formatted;
 
-  } catch (error) {
-    console.error("Query error:", error);
-    return { error: "An error occurred" };
+  } catch (err) {
+    console.error("Query error:", err);
+    return { error: "Query failed" };
   } finally {
     await session.close();
   }
 }
 
-// Run directly (optional)
+// Optional CLI runner
 if (process.argv.includes("--run")) {
-  getEyreSquareRelatedNodes().then(json => {
-    console.log(JSON.stringify(json, null, 2));
+  const tags = ["Eyre Square", "Spanish Arch"]; // example multiple tags
+  getNodes(tags).then(res => {
+    console.log(JSON.stringify(res, null, 2));
     driver.close();
   });
 }
-
-export default getEyreSquareRelatedNodes;

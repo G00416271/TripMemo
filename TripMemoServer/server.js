@@ -6,6 +6,7 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
+import getNodes from './neoDB.js';  
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -35,26 +36,41 @@ app.get('/icons', (req, res) => {
 const upload = multer({
   dest: path.join(__dirname, "uploads/")
 });
-
 app.post("/process-images", upload.single("file"), async (req, res) => {
   try {
-    // Correct check:
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
     const filePath = req.file.path;
 
-    // processImages expects an array
-    const result = await processImages([filePath]);
+    // Ensure array
+    const imagesResult = await processImages([filePath]);
 
-    res.json(result);
+    // Extract tags safely
+    const tags = imagesResult.tags || [];
+
+    // User interest matching
+    const interestsResult = await getInterests(tags, req.body);
+
+    // Neo4j matching
+    const neo4jResult = await getNodes(interestsResult.matchedInterests);
+
+    // Final combined response
+    const finalResult = {
+      imageAnalysis: imagesResult,
+      matchedUserInterests: interestsResult,
+      relatedLocations: neo4jResult
+    };
+
+    res.json(finalResult);
 
   } catch (err) {
     console.error("Error in /process-images route:", err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
+
 
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {

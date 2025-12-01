@@ -134,7 +134,7 @@ export default async function processImages(imagePaths) {
     });
   }
 
-  const psuedoResult = { tags: ["galway", "christmas market" ] };
+  const psuedoResult = { tags: ["galway", "christmas market" , "volleyball"]};
 
   try {
   const LLMresult = await model.generateContent({
