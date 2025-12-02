@@ -1,3 +1,4 @@
+//App.jsx
 import React, { useState } from "react";
 import "./App.css";
 import "./onboarding.css";
@@ -13,6 +14,7 @@ import {
   FiUser,
   FiMapPin,
   FiMessageCircle,
+   FiArrowLeft,
 } from "react-icons/fi";
 import {
   AiOutlineSearch,
@@ -30,6 +32,10 @@ import {
 import { IoIosAirplane } from "react-icons/io";
 
 import SideMenu from "./SideMenu";
+import MapsPage from "./MapsPage";
+import SOSPage from "./SOSPage";
+
+
 
 const scrapbooks = [
   { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
@@ -41,12 +47,18 @@ const bucketList = [
   { id: 2, title: "New York", location: "USA" },
 ];
 
+
 const PLACEHOLDER_AVATAR =
   "https://www.pngitem.com/pimgs/m/146-1468479_my-profile-icon-blank-profile-picture-circle-hd.png";
 
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const [activeTab, setActiveTab] = useState("home")
+
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
+
+  
   // NEW: track which onboarding screen the user is on
   const [onboardingStep, setOnboardingStep] = useState(0);
 
@@ -97,13 +109,14 @@ if (onboardingStep === 2) {
       <div className="phone-shell">
         <div className="phone-inner">
           {/* HEADER */}
-          <header className="header">
-            <div className="header-left">
-              <img
-                className="avatar"
-                src={PLACEHOLDER_AVATAR}
-                alt="Profile"
-              />
+          {activeTab === "home" && (
+  <header className="header">
+    <div className="header-left">
+      <img
+        className="avatar"
+        src={PLACEHOLDER_AVATAR}
+        alt="Profile"
+      />
               <div>
                 <p className="hey-text">Hello, User 👋</p>
               </div>
@@ -118,6 +131,21 @@ if (onboardingStep === 2) {
             </button>
           </header>
 
+          )}
+
+{/* MAPS HEADER - Only show on maps page */}
+{activeTab === "maps" && (
+  <header className="header">
+    <button
+      className="icon-pill"
+      onClick={() => setActiveTab("home")}
+      style={{ marginRight: 'auto' }}
+    >
+      <FiArrowLeft />
+    </button>
+  </header>
+)}
+
           {/* SLIDE-OUT MENU */}
           <SideMenu
             isOpen={isMenuOpen}
@@ -125,21 +153,27 @@ if (onboardingStep === 2) {
           />
 
           {/* SEARCH */}
-          <section className="search-section">
-            <div className="search-bar">
-              <AiOutlineSearch className="search-icon" />
-              <input
-                type="text"
-                placeholder="Find things you interested in"
-              />
-            </div>
+          {activeTab === "home" && (
+  <section className="search-section">
+    <div className="search-bar">
+      <AiOutlineSearch className="search-icon" />
+      <input
+        type="text"
+        placeholder="Find things you interested in"
+      />
+    </div>
+  </section>
+)}
 
             {/* <button className="fab-filter">
               <FiSliders />
             </button> */}
-          </section>
+          
 
-          <main className="content">
+          <main className={`content ${activeTab === "maps" ? "content--maps" : ""}`}>
+  {activeTab === "home" && (
+    <>
+          
             {/* "booking" / CTA section */}
             <SectionHeader title="Create Your Next Adventure..." />
             <div className="book-row">
@@ -199,13 +233,41 @@ if (onboardingStep === 2) {
                 </article>
               ))}
             </div>
-          </main>
+            </>
+  )}
+  
+  {activeTab === "maps" && <MapsPage />}
+  {activeTab === "sos" && (
+    <SOSPage
+      contacts={emergencyContacts}
+      onSaveContacts={setEmergencyContacts}
+    />
+  )}
+</main>
 
           {/* BOTTOM NAV */}
           <nav className="bottom-nav">
-            <NavItem icon={<AiFillHome />} active />          {/* Home */}
-            <NavItem icon={<FiMapPin />} />                   {/* Maps */}
-            <NavItem icon={<MdEmergency />} sos />            {/* SOS */}
+             <NavItem
+              icon={<AiFillHome />}
+              active={activeTab === "home"}
+              onClick={() => setActiveTab("home")}
+            />
+            <NavItem
+              icon={<FiMapPin />}
+              active={activeTab === "maps"}
+              onClick={() => setActiveTab("maps")}
+            />
+             <NavItem
+              icon={<MdEmergency />}
+              active={activeTab === "sos"}
+              onClick={() => setActiveTab("sos")}
+            />
+            {/* <NavItem 
+  icon={<MdEmergency />} 
+  sos 
+  onClick={() => setSOSOpen(true)}
+/> */}
+            {/*<NavItem icon={<MdEmergency />} sos />             SOS */}
             <NavItem icon={<FiMessageCircle />} />            {/* Chatroom */}
             <NavItem icon={<MdCollectionsBookmark />} />      {/* Collections */}
           </nav>
@@ -242,10 +304,11 @@ function FriendPreview({ icon, name }) {
   );
 }
 
-function NavItem({ icon, active, sos }) {
+function NavItem({ icon, active, sos, onClick }) {
   return (
     <button
       className={`nav-item ${active ? "active" : ""} ${sos ? "sos" : ""}`}
+       onClick={onClick}
     >
       {icon}
     </button>
