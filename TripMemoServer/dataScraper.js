@@ -5,8 +5,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { exiftool } from "exiftool-vendored";
 import NodeGeocoder from "node-geocoder";
 import fs from "fs";
-import path from "path";
-import e from "express";
 
 // ---------------------------------------------
 // MASTER FUNCTION
@@ -19,7 +17,6 @@ export default async function processImages(imagePaths) {
     apiKey: process.env.opencageApiKey
   });
 
-  // ---------- RESULT STORE ----------
   const result = {
     imagesBase64: [],
     metaData: [],
@@ -27,7 +24,7 @@ export default async function processImages(imagePaths) {
     locationsArray: []
   };
 
-  // ---------- Helper: Convert to base64 ----------
+  // ---------- Convert to base64 ----------
   function convertToBase64(paths) {
     return paths.map(p => ({
       path: p,
@@ -35,17 +32,17 @@ export default async function processImages(imagePaths) {
     }));
   }
 
-  // ---------- Helper: Extract GPS metadata ----------
+  // ---------- Extract EXIF ----------
   async function extractMetadata(imagePaths) {
-    const results = [];
+    const out = [];
 
     try {
       for (const p of imagePaths) {
         try {
           const meta = await exiftool.readRaw(p, ["-n", "-GPSLatitude", "-GPSLongitude"]);
-          results.push({ path: p, metadata: meta });
-        } catch (err) {
-          results.push({
+          out.push({ path: p, metadata: meta });
+        } catch {
+          out.push({
             path: p,
             metadata: { GPSLatitude: null, GPSLongitude: null }
           });
@@ -55,19 +52,16 @@ export default async function processImages(imagePaths) {
       await exiftool.end();
     }
 
-    return results;
+    return out;
   }
 
-  // ---------- Helper: Extract readable locations ----------
+  // ---------- Reverse geocode ----------
   async function extractLocations(gpsArray) {
     const locations = [];
 
     for (const item of gpsArray) {
       if (!item.lat || !item.lon) {
-        locations.push({
-          ...item,
-          location: "No GPS metadata"
-        });
+        locations.push({ ...item, location: "No GPS metadata" });
         continue;
       }
 
@@ -79,24 +73,18 @@ export default async function processImages(imagePaths) {
           ...item,
           location: [g.streetName, g.city, g.county, g.country]
             .filter(Boolean)
-            .join(", "),
-          extra: g.extra
+            .join(", ")
         });
 
-      } catch (err) {
-        locations.push({
-          ...item,
-          location: "Error retrieving location"
-        });
+      } catch {
+        locations.push({ ...item, location: "Error retrieving location" });
       }
     }
 
     return locations;
   }
 
-  // -------------------------------------------------------------------
-  // RUN PIPELINE
-  // -------------------------------------------------------------------
+  // ---------- PIPELINE ----------
   result.imagesBase64 = convertToBase64(imagePaths);
 
   const metadataResults = await extractMetadata(imagePaths);
@@ -110,21 +98,24 @@ export default async function processImages(imagePaths) {
 
   result.locationsArray = await extractLocations(result.gpsArray);
 
-  // -------------------------------------------------------------------
-  // SEND TO GEMINI
-  // -------------------------------------------------------------------
-
+  // ---------- SEND TO GEMINI ----------
   const ai = new GoogleGenerativeAI(process.env.geminiApiKey);
   const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const parts = [
     { text: "Extract information from these images and metadata." },
-    { text: "Only respond with relevant single-word tags from: ['galway','laptop','notes','newyorkcity','desk']." },
-    { text: "Here is the metadata:\n" + JSON.stringify(result, null, 2) },
+    {
+      text: "Respond ONLY with a JSON array of strings in this exact format: [\"galway\",\"christmas market\",\"volleyball\"]"
+    },
+    {
+      text: "Choose only relevant single-word or short tags from: ['galway','laptop','notes','newyorkcity','desk','drawing','black hoodie']."
+    },
+    { text: "Do not include explanations. Output only the array." },
+    { text: "Metadata:\n" + JSON.stringify(result, null, 2) },
     { text: "Locations:\n" + JSON.stringify(result.locationsArray, null, 2) }
   ];
 
-  // Attach images
+  // attach images
   for (const img of result.imagesBase64) {
     parts.push({
       inlineData: {
@@ -134,25 +125,18 @@ export default async function processImages(imagePaths) {
     });
   }
 
-  const psuedoResult = { tags: ["galway", "christmas market" , "volleyball"]};
-
   try {
-  const LLMresult = await model.generateContent({
-    contents: [{ role: "user", parts }]
-  });
+    const LLMresult = await model.generateContent({
+      contents: [{ role: "user", parts }]
+    });
 
-  return LLMresult.response.text();
+    return LLMresult.response.text();
 
-} catch (err) {
-  const code = err?.error?.code;
-
-  if (code === 429 || code === 400) {
-    console.warn(`LLM failed with code ${code}. Returning fallback tags.`);
-    return psuedoResult;
+  } catch (err) {
+    console.log("LLM error:", err);
+    console.warn("LLM error → returning fallback tags.");
+    return `["galway","christmas market","volleyball"]`;
   }
-
-  // Unknown error → still fallback
-  return psuedoResult;
-}
 }
 
+ processImages(["./IMG_3974.HEIC"]);

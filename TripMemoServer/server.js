@@ -47,6 +47,7 @@ app.post("/process-images", upload.single("file"), async (req, res) => {
     // Ensure array
     const imagesResult = await processImages([filePath]);
 
+
     // Extract tags safely
     const tags = imagesResult.tags || [];
 

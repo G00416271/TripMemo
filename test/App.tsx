@@ -59,6 +59,7 @@ export default function App() {
         // Real upload mode
         const formData = new FormData();
         formData.append('file', fileData.file);
+        formData.append('user', "tim");
 
         const response = await fetch(serverConfig.url, {
           method: 'POST',
