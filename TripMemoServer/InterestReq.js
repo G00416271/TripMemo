@@ -1,5 +1,6 @@
 import mysql from "mysql2/promise";
 
+
 export default async function getInterests(tags = [], fields) {
   const u = fields.user;
 

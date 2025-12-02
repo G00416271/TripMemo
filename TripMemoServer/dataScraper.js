@@ -5,11 +5,34 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { exiftool } from "exiftool-vendored";
 import NodeGeocoder from "node-geocoder";
 import fs from "fs";
+import sharp from "sharp";
+import heicConvert from "heic-convert";
+import * as locationWords from "./words.js";
+
+
+
 
 // ---------------------------------------------
 // MASTER FUNCTION
 // ---------------------------------------------
 export default async function processImages(imagePaths) {
+
+  async function convertHEICBuffer(filePath) {
+  const input = fs.readFileSync(filePath);
+
+  try {
+    const output = await heicConvert({
+      buffer: input,
+      format: "JPEG",
+      quality: 0.7
+    });
+
+    return output.toString("base64");
+  } catch (e) {
+    console.log("heic-convert error:", e);
+    return null;
+  }
+}
 
   // ---------- Setup geocoder ----------
   const geocoder = NodeGeocoder({
@@ -24,13 +47,40 @@ export default async function processImages(imagePaths) {
     locationsArray: []
   };
 
-  // ---------- Convert to base64 ----------
-  function convertToBase64(paths) {
-    return paths.map(p => ({
-      path: p,
-      base64: fs.readFileSync(p, "base64")
-    }));
+ async function compressImage(filePath) {
+  if (filePath.toLowerCase().endsWith(".heic")) {
+    const b64 = await convertHEICBuffer(filePath);
+    if (b64) return b64;
   }
+
+  try {
+    const buffer = await sharp(filePath)
+      .rotate()
+      .jpeg({ quality: 70 })
+      .toBuffer();
+
+    return buffer.toString("base64");
+  } catch (err) {
+    console.log("Compression error:", err);
+    return fs.readFileSync(filePath, "base64");
+  }
+}
+
+
+
+
+  // ---------- Convert to base64 ----------
+async function convertToBase64(paths) {
+  const out = [];
+
+  for (const p of paths) {
+    const base64 = await compressImage(p);
+    out.push({ path: p, base64 });
+  }
+
+  return out;
+}
+
 
   // ---------- Extract EXIF ----------
   async function extractMetadata(imagePaths) {
@@ -85,7 +135,8 @@ export default async function processImages(imagePaths) {
   }
 
   // ---------- PIPELINE ----------
-  result.imagesBase64 = convertToBase64(imagePaths);
+  result.imagesBase64 = await convertToBase64(imagePaths);
+
 
   const metadataResults = await extractMetadata(imagePaths);
   result.metaData = metadataResults;
@@ -98,22 +149,50 @@ export default async function processImages(imagePaths) {
 
   result.locationsArray = await extractLocations(result.gpsArray);
 
+  const locationTags = [];
+
+for (const item of result.locationsArray) {
+  const loc = item.location?.toLowerCase() || "";
+
+  for (const key in locationWords) {
+    if (loc.includes(key)) {
+      locationTags.push({
+        name: key,
+        words: locationWords[key]
+      });
+   // push the whole array
+    }
+  }
+}
+
+
   // ---------- SEND TO GEMINI ----------
   const ai = new GoogleGenerativeAI(process.env.geminiApiKey);
   const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  const parts = [
-    { text: "Extract information from these images and metadata." },
-    {
-      text: "Respond ONLY with a JSON array of strings in this exact format: [\"galway\",\"christmas market\",\"volleyball\"]"
-    },
-    {
-      text: "Choose only relevant single-word or short tags from: ['galway','laptop','notes','newyorkcity','desk','drawing','black hoodie']."
-    },
-    { text: "Do not include explanations. Output only the array." },
-    { text: "Metadata:\n" + JSON.stringify(result, null, 2) },
-    { text: "Locations:\n" + JSON.stringify(result.locationsArray, null, 2) }
-  ];
+const parts = [
+  { 
+    text: "Analyze the provided images and metadata to extract relevant tags." 
+  },
+  {
+    text: "Return ONLY a valid JSON array of lowercase strings. Example: [\"galway\",\"christmas market\",\"volleyball\",\"black hoodie\"]"
+  },
+  {
+    text: "Extract tags for: visible objects, clothing, people, activities, landmarks, locations, events, weather conditions, and time of day."
+  },
+  {
+    text: "Prioritize tags from this predefined list when applicable: " + JSON.stringify(locationTags.map(x => x.words).flat(), null, 2)
+  },
+  {
+    text: "Also include additional highly relevant tags you identify with confidence, even if not in the predefined list."
+  },
+  {
+    text: "Given these GPS locations: " + JSON.stringify(result.locationsArray, null, 2) + "\nInclude tags for nearby landmarks, businesses, neighborhoods, or points of interest within ~500m of these coordinates."
+  },
+  {
+    text: "Rules:\n- Use lowercase only\n- Prefer specific terms over generic ones\n- Use single words or short phrases (max 3 words)\n- No explanations, preamble, or markdown\n- Output must be valid JSON array only"
+  }
+];
 
   // attach images
   for (const img of result.imagesBase64) {
@@ -125,10 +204,15 @@ export default async function processImages(imagePaths) {
     });
   }
 
+
+
+
   try {
     const LLMresult = await model.generateContent({
       contents: [{ role: "user", parts }]
     });
+
+    //return {ai: LLMresult.response.text(), locations: result.locationsArray }; // for testing
 
     return LLMresult.response.text();
 
@@ -139,4 +223,4 @@ export default async function processImages(imagePaths) {
   }
 }
 
- processImages(["./IMG_3974.HEIC"]);
+ processImages(["./images/IMG_3941.HEIC"]).then(console.log);
