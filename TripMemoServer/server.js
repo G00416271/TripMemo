@@ -6,7 +6,7 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
-import getNodes from './neoDB.js';  
+import getNodes from './neoDB.js';
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -25,37 +25,72 @@ app.use(bodyParser.json());
 // Serve static icons
 app.use('/icons', express.static(path.join(__dirname, 'Icons')));
 
-// Duplicate GET /icons removed — keeping only one
+// GET icons (safe)
 app.get('/icons', (req, res) => {
-  res.json({ message: 'Icons are available at /icons/<filename>.svg' });
+  try {
+    res.json({ message: 'Icons are available at /icons/<filename>.svg' });
+  } catch (err) {
+    console.error("GET /icons error:", err);
+    res.status(500).json({ error: "Failed to load icons" });
+  }
 });
 
 // ---------------------------------------
-//  FILE UPLOAD ENDPOINT FOR DATASCRAPER
+//  FILE UPLOAD ENDPOINT (DATASCRAPER)
 // ---------------------------------------
 const upload = multer({
   dest: path.join(__dirname, "uploads/")
 });
+
 app.post("/process-images", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const filePath = req.file.path;
+    let filePath;
+    try {
+      filePath = req.file.path;
+    } catch (err) {
+      console.error("File path error:", err);
+      return res.status(500).json({ error: "Upload failed" });
+    }
 
-    // Ensure array
-    const imagesResult = await processImages([filePath]);
-
+    // Process images
+    let imagesResult = {};
+    try {
+      imagesResult = await processImages([filePath]);
+    } catch (err) {
+      console.error("processImages() error:", err);
+      return res.status(500).json({ error: "Image processing failed" });
+    }
 
     // Extract tags safely
-    const tags = imagesResult.tags || [];
+    let tags = [];
+    try {
+      tags = imagesResult.tags || [];
+    } catch (err) {
+      console.error("Tag extraction error:", err);
+      tags = [];
+    }
 
     // User interest matching
-    const interestsResult = await getInterests(tags, req.body);
+    let interestsResult = {};
+    try {
+      interestsResult = await getInterests(tags, req.body);
+    } catch (err) {
+      console.error("getInterests() error:", err);
+      interestsResult = { error: "Interest matching failed" };
+    }
 
     // Neo4j matching
-    const neo4jResult = await getNodes(interestsResult.matchedInterests);
+    let neo4jResult = [];
+    try {
+      neo4jResult = await getNodes(interestsResult.tags || []);
+    } catch (err) {
+      console.error("Neo4j getNodes() error:", err);
+      neo4jResult = [];
+    }
 
     // Final combined response
     const finalResult = {
@@ -73,6 +108,9 @@ app.post("/process-images", upload.single("file"), async (req, res) => {
 });
 
 
+// ---------------------------------------
+//  QUICK INTEREST CHECK
+// ---------------------------------------
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {
     const result = await getInterests(req.body);
@@ -84,8 +122,13 @@ app.post("/interestReq", upload.none(), async (req, res) => {
 });
 
 
-
-// Start server
-app.listen(PORT, () => 
-  console.log(`✅ Server running on http://localhost:${PORT}`)
-);
+// ---------------------------------------
+//  START SERVER
+// ---------------------------------------
+try {
+  app.listen(PORT, () =>
+    console.log(`✅ Server running on http://localhost:${PORT}`)
+  );
+} catch (err) {
+  console.error("Server startup error:", err);
+}

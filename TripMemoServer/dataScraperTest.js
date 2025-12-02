@@ -12,11 +12,10 @@ import e from "express";
 // STANDALONE FUNCTION: processSingleImage(imagePath)
 // ------------------------------------------------------
 export default async function processSingleImage(imagePath) {
-
   // ---------- Setup geocoder ----------
   const geocoder = NodeGeocoder({
     provider: "opencage",
-    apiKey: process.env.opencageApiKey
+    apiKey: process.env.opencageApiKey,
   });
 
   // ---------- Convert image to base64 ----------
@@ -25,7 +24,11 @@ export default async function processSingleImage(imagePath) {
   // ---------- Extract EXIF ----------
   let meta = {};
   try {
-    meta = await exiftool.readRaw(imagePath, ["-n", "-GPSLatitude", "-GPSLongitude"]);
+    meta = await exiftool.readRaw(imagePath, [
+      "-n",
+      "-GPSLatitude",
+      "-GPSLongitude",
+    ]);
   } catch (err) {
     meta = { GPSLatitude: null, GPSLongitude: null };
   } finally {
@@ -34,7 +37,7 @@ export default async function processSingleImage(imagePath) {
 
   const gps = {
     lat: meta.GPSLatitude ?? null,
-    lon: meta.GPSLongitude ?? null
+    lon: meta.GPSLongitude ?? null,
   };
 
   // ---------- Reverse geocode ----------
@@ -43,7 +46,9 @@ export default async function processSingleImage(imagePath) {
     try {
       const res = await geocoder.reverse({ lat: gps.lat, lon: gps.lon });
       const g = res[0];
-      location = [g.streetName, g.city, g.county, g.country].filter(Boolean).join(", ");
+      location = [g.streetName, g.city, g.county, g.country]
+        .filter(Boolean)
+        .join(", ");
     } catch {
       location = "Error retrieving location";
     }
@@ -53,7 +58,7 @@ export default async function processSingleImage(imagePath) {
   const fullInfo = {
     metaData: meta,
     gps,
-    location
+    location,
   };
 
   // ---------- Run Gemini ----------
@@ -61,29 +66,68 @@ export default async function processSingleImage(imagePath) {
   const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const parts = [
-   { text: "Extract information from this image and metadata." },
-  { text: "Respond ONLY with a JSON array of strings in this exact format: [\"galway\",\"christmas market\",\"volleyball\"]" },
-  { text: "Choose only relevant single-word or short tags from: ['galway','laptop','notes','newyorkcity','desk','drawing','black hoodie']." 
-  },
-  { text: "Do not include explanations. Output only the array." },
-  { text: "Metadata:\n" + JSON.stringify(fullInfo, null, 2) }
+    {
+      text: "You are tagging an image using only short, relevant labels.",
+    },
+    {
+      text: 'Return ONLY a JSON array of strings in this format: ["tag1","tag2","tag3"].',
+    },
+    {
+      text: "Choose relevant tags based on the image content AND the metadata.",
+    },
+    {
+      text: "Allowed tags: ['galway','laptop','notes','newyorkcity','desk','drawing','black hoodie'].",
+    },
+    {
+      text: "You MAY also include one or two extra obvious items visible in the image (example: 'pen', 'mug').",
+    },
+    {
+      text: "Do NOT include explanations. Do NOT include text outside the JSON array.",
+    },
+    {
+      text: "Here is the metadata:\n" + JSON.stringify(fullInfo, null, 2),
+    },
   ];
 
   parts.push({
     inlineData: {
       mimeType: "image/jpeg",
-      data: base64
-    }
+      data: base64,
+    },
   });
 
-    const LLMresult = await model.generateContent({
-      contents: [{ role: "user", parts }]
-    });
-
-    console.log (LLMresult.response.text());
+  let LLMresult;
+try {
+  LLMresult = await model.generateContent({
+    contents: [{ role: "user", parts }]
+  });
+} catch (err) {
+  console.log("❌ Gemini request failed:", err);
+  return { tags: [] };
 }
 
-// ------------------------------------------------------
-// Example usage:
-// ------------------------------------------------------
- processSingleImage("./IMG_3949.HEIC");
+// -----------------------------
+// Clean + extract JSON safely
+// -----------------------------
+let raw = LLMresult.response.text()
+  .replace(/```json|```/g, "")
+  .replace(/^\s+|\s+$/g, "")   // trim whitespace reliably
+  .trim();
+
+let parsedTags = [];
+
+try {
+  parsedTags = JSON.parse(raw);
+  if (!Array.isArray(parsedTags)) throw new Error("Not an array");
+} catch (err) {
+  console.log("⚠️ JSON parse failed, raw output:", raw);
+  parsedTags = [];
+}
+
+// -----------------------------
+// Final return
+// -----------------------------
+return {
+  tags: parsedTags
+};
+}

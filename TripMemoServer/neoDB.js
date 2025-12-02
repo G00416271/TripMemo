@@ -1,7 +1,5 @@
-// eyreSquareQuery.js
 import neo4j from "neo4j-driver";
 
-// --- CONFIGURE CONNECTION ---
 const URI = "neo4j://127.0.0.1:7687";
 const USER = "neo4j";
 const PASSWORD = "TripMemoGalway";
@@ -12,17 +10,24 @@ export default async function getNodes(tags = []) {
   const session = driver.session();
 
   try {
-    // Ensure tags is an array
-    if (!Array.isArray(tags)) {
-      tags = [tags];
+    // Normalize tags to a clean string array
+    if (!Array.isArray(tags)) tags = [tags];
+
+    tags = tags
+      .flat(Infinity)
+      .filter(t => typeof t === "string" && t.trim() !== "");
+
+    // log what is actually being passed:
+    console.log("Neo4j received tags:", tags);
+
+    if (tags.length === 0) {
+      return [];
     }
 
-    // MAIN QUERY:
-    // Find all nodes with a name matching ANY tag
-    // Find 1-hop and 2-hop related nodes
     const query = `
       UNWIND $tags AS tag
-      MATCH (e {name: tag})
+      MATCH (e)
+      WHERE toLower(e.name) CONTAINS toLower(tag)
       OPTIONAL MATCH (e)-[r]-(related)
       OPTIONAL MATCH (related)-[r2]-(related2)
       RETURN e, r, related, r2, related2
@@ -30,8 +35,7 @@ export default async function getNodes(tags = []) {
 
     const result = await session.run(query, { tags });
 
-    // Format
-    const formatted = result.records.map(record => ({
+    return result.records.map(record => ({
       node: record.get("e")?.properties ?? null,
       relationship1: record.get("r")?.type ?? null,
       relatedNode1: record.get("related")?.properties ?? null,
@@ -39,21 +43,10 @@ export default async function getNodes(tags = []) {
       relatedNode2: record.get("related2")?.properties ?? null,
     }));
 
-    return formatted;
-
   } catch (err) {
     console.error("Query error:", err);
     return { error: "Query failed" };
   } finally {
     await session.close();
   }
-}
-
-// Optional CLI runner
-if (process.argv.includes("--run")) {
-  const tags = ["Eyre Square", "Spanish Arch"]; // example multiple tags
-  getNodes(tags).then(res => {
-    console.log(JSON.stringify(res, null, 2));
-    driver.close();
-  });
 }

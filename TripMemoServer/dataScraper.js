@@ -175,10 +175,13 @@ const parts = [
     text: "Analyze the provided images and metadata to extract relevant tags." 
   },
   {
-    text: "Return ONLY a valid JSON array of lowercase strings. Example: [\"galway\",\"christmas market\",\"volleyball\",\"black hoodie\"]"
+    text: `Return ONLY a valid JSON array of lowercase strings. Example: ["galway","christmas market","volleyball","black hoodie"]`
   },
   {
     text: "Extract tags for: visible objects, clothing, people, activities, landmarks, locations, events, weather conditions, and time of day."
+  },
+  {
+    text: "IMPORTANT: Given these GPS locations: " + JSON.stringify(result.locationsArray, null, 2) + "\nIdentify the city, county, region, and country from these coordinates. Include tags for: the location name itself, nearby landmarks, businesses, neighborhoods, or points of interest within ~500m. if there is no loctation data, return the word 'Anomaly'."
   },
   {
     text: "Prioritize tags from this predefined list when applicable: " + JSON.stringify(locationTags.map(x => x.words).flat(), null, 2)
@@ -187,10 +190,7 @@ const parts = [
     text: "Also include additional highly relevant tags you identify with confidence, even if not in the predefined list."
   },
   {
-    text: "Given these GPS locations: " + JSON.stringify(result.locationsArray, null, 2) + "\nInclude tags for nearby landmarks, businesses, neighborhoods, or points of interest within ~500m of these coordinates."
-  },
-  {
-    text: "Rules:\n- Use lowercase only\n- Prefer specific terms over generic ones\n- Use single words or short phrases (max 3 words)\n- No explanations, preamble, or markdown\n- Output must be valid JSON array only"
+    text: "Rules:\n- Use lowercase only\n- Prefer specific terms over generic ones (e.g., 'galway' over 'city')\n- Use single words or short phrases (max 3 words)\n- No explanations, preamble, or markdown\n- Output must be valid JSON array only"
   }
 ];
 
@@ -207,20 +207,40 @@ const parts = [
 
 
 
-  try {
-    const LLMresult = await model.generateContent({
-      contents: [{ role: "user", parts }]
-    });
-
-    //return {ai: LLMresult.response.text(), locations: result.locationsArray }; // for testing
-
-    return LLMresult.response.text();
-
-  } catch (err) {
-    console.log("LLM error:", err);
-    console.warn("LLM error → returning fallback tags.");
-    return `["galway","christmas market","volleyball"]`;
-  }
+  let LLMresult;
+try {
+  LLMresult = await model.generateContent({
+    contents: [{ role: "user", parts }]
+  });
+} catch (err) {
+  console.log("❌ Gemini request failed:", err);
+  return { tags: ['galway christmas market', 'galway', 'cake', 'volleyball'] };
 }
 
- processImages(["./images/IMG_3941.HEIC"]).then(console.log);
+// -----------------------------
+// Clean + extract JSON safely
+// -----------------------------
+let raw = LLMresult.response.text()
+  .replace(/```json|```/g, "")
+  .replace(/^\s+|\s+$/g, "")   // trim whitespace reliably
+  .trim();
+
+let parsedTags = [];
+
+try {
+  parsedTags = JSON.parse(raw);
+  if (!Array.isArray(parsedTags)) throw new Error("Not an array");
+} catch (err) {
+  console.log("⚠️ JSON parse failed, raw output:", raw);
+  parsedTags = ['galway christmas market', 'galway', 'cake', 'volleyball'];
+}
+
+// -----------------------------
+// Final return
+// -----------------------------
+return {
+  tags: parsedTags,
+  locations: result.locationsArray
+};
+}
+// processImages(["./images/IMG_3941.HEIC"]).then(console.log);

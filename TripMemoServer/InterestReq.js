@@ -2,7 +2,13 @@ import mysql from "mysql2/promise";
 
 
 export default async function getInterests(tags = [], fields) {
+
+
   const u = fields.user;
+  tags = tags
+  .flat(Infinity)
+  .filter(x => typeof x === "string")
+  .map(x => x.toLowerCase());
 
   if (!Array.isArray(tags)) {
     tags = [tags];
