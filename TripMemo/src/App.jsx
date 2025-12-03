@@ -4,9 +4,15 @@ import "./App.css";
 import FileUpload from "./pages/fileUpload.jsx";
 import "./onboarding.css";
 import { createContext } from "react";
+import "./fonts.css";
+import OnboardingLogo from "./onboarding/OnboardingLogo";
 import Onboarding1 from "./onboarding/Onboarding1";
 import Onboarding2 from "./onboarding/Onboarding2";
 import Onboarding3 from "./onboarding/Onboarding3";
+
+// updated: these lines allow the login and signup pages to be imported
+import LoginPage, { SignupPage } from "./LoginPage";
+import "./Auth.css";
 
 import {
   FiMenu,
@@ -36,7 +42,6 @@ import SOSPage from "./SOSPage";
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/create.jsx";
 import Memories from "./loadMemories.jsx";
-
 
 const scrapbooks = [
   { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
@@ -78,18 +83,60 @@ function App() {
   const [serverData, setServerData] = useState(null);
   const [currPage, setCurrPage] = useState("home");
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false); //updated
+  const [showSignup, setShowSignup] = useState(false); //updated
+  const [userName, setUserName] = useState("User");
+
   //<Create setActiveTab={setActiveTab}/>
-  
 
   // Track onboarding step
   const [onboardingStep, setOnboardingStep] = useState(0);
 
   const handleNextOnboarding = () => setOnboardingStep((prev) => prev + 1);
 
-  const handleSkipOnboarding = () => setOnboardingStep(3);
+  const handleSkipOnboarding = () => setOnboardingStep(4);
+
+  // updated: logic to display users name after login
+  if (!isAuthenticated) {
+    if (showSignup) {
+      return (
+        <SignupPage
+          onSignup={(name) => {
+            setUserName(name);
+            setIsAuthenticated(true);
+            setOnboardingStep(0);
+          }}
+          onSwitchToLogin={() => setShowSignup(false)}
+        />
+      );
+    }
+
+    return (
+      <LoginPage
+        onLogin={(name) => {
+          setUserName(name);
+          setIsAuthenticated(true);
+          setOnboardingStep(0);
+        }}
+        onSwitchToSignup={() => setShowSignup(true)}
+      />
+    );
+  }
+
+  if (onboardingStep === 0) {
+    //updated: add this block of code and change numbers 0-3
+    return (
+      <div className="app-root">
+        <OnboardingLogo
+          onNext={handleNextOnboarding}
+          onSkip={handleSkipOnboarding}
+        />
+      </div>
+    );
+  }
 
   // --- SHOW ONBOARDING FIRST ---
-  if (onboardingStep === 0) {
+  if (onboardingStep === 1) {
     return (
       <div className="app-root">
         <Onboarding1
@@ -100,7 +147,7 @@ function App() {
     );
   }
 
-  if (onboardingStep === 1) {
+  if (onboardingStep === 2) {
     return (
       <div className="app-root">
         <Onboarding2
@@ -111,7 +158,7 @@ function App() {
     );
   }
 
-  if (onboardingStep === 2) {
+  if (onboardingStep === 3) {
     return (
       <div className="app-root">
         <Onboarding3
@@ -131,7 +178,8 @@ function App() {
           <div className="header-left">
             <img className="avatar" src={PLACEHOLDER_AVATAR} alt="Profile" />
             <div>
-              <p className="hey-text">Hello, User 👋</p>
+              <p className="hey-text">Hello, {userName} 👋</p>{" "}
+              {/*updated: displays users name */}
             </div>
           </div>
 
@@ -305,13 +353,14 @@ function App() {
           />
         )}
         {activeTab === "create" && <Memories setActiveTab={setActiveTab} />}
-        {activeTab === "canvas" && <Create serverData={serverData} setActiveTab={setActiveTab}/>}
-
         {activeTab === "sos" && (
           <SOSPage
             contacts={emergencyContacts}
             onSaveContacts={setEmergencyContacts}
           />
+        )}
+        {activeTab === "canvas" && (
+          <Create serverData={serverData} setActiveTab={setActiveTab} />
         )}
       </main>
 
@@ -339,11 +388,17 @@ function App() {
           onClick={() => setActiveTab("create")}
           label="Create"
         />
-        <NavItem icon={<FiMessageCircle />} label="Chat" />
+
+        <NavItem
+          icon={<FiMessageCircle />}
+          active={activeTab === "sos"}
+          onClick={() => setActiveTab("sos")}
+          label="SOS"
+        />
+
         <NavItem icon={<MdCollectionsBookmark />} label="Collections" />
       </nav>
     </div>
-
   );
 }
 
