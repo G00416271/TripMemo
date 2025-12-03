@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import "./App.css";
 import FileUpload from "./pages/fileUpload.jsx";
 import "./onboarding.css";
-
+import { createContext } from "react";
 import Onboarding1 from "./onboarding/Onboarding1";
 import Onboarding2 from "./onboarding/Onboarding2";
 import Onboarding3 from "./onboarding/Onboarding3";
@@ -36,6 +36,7 @@ import SOSPage from "./SOSPage";
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/create.jsx";
 import Memories from "./loadMemories.jsx";
+
 
 const scrapbooks = [
   { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
@@ -76,6 +77,9 @@ function App() {
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [serverData, setServerData] = useState(null);
   const [currPage, setCurrPage] = useState("home");
+
+  //<Create setActiveTab={setActiveTab}/>
+  
 
   // Track onboarding step
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -301,7 +305,7 @@ function App() {
           />
         )}
         {activeTab === "create" && <Memories setActiveTab={setActiveTab} />}
-        {activeTab === "canvas" && <Create serverData={serverData}/>}
+        {activeTab === "canvas" && <Create serverData={serverData} setActiveTab={setActiveTab}/>}
 
         {activeTab === "sos" && (
           <SOSPage
@@ -339,6 +343,7 @@ function App() {
         <NavItem icon={<MdCollectionsBookmark />} label="Collections" />
       </nav>
     </div>
+
   );
 }
 

@@ -5,14 +5,16 @@ import TestDBButton from "../components/testDBbutton.jsx";
 import BottomDrawer from '../toolbox/assetStore.jsx';
 import TestGemini from '../test.jsx';    
 import { useState } from "react";
+import React from "react";
 
 
 
 document.oncontextmenu = () => false;
 
 
-export default function Create({ serverData }) {
+export default function Create({ serverData, setActiveTab }) {
   const [page, setPage] = useState("main");
+
 
   return (
     <>
@@ -26,7 +28,7 @@ export default function Create({ serverData }) {
 
         <>
           <div id="navbar">
-            <NavBar />
+            <NavBar setActiveTab={setActiveTab}/>
           </div>
 
           <div style={{ 

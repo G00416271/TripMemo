@@ -40,7 +40,7 @@ export default function BottomDrawer({ serverData }) {
 
   // --- fetch images ---
   useEffect(() => {
-    const tags = serverData?.matchedUserInterests?.matchedInterests;
+    const tags = serverData?.tags;
     if (!tags) return;
 
     const fetchImages = async () => {
