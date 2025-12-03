@@ -17,11 +17,7 @@ import {
   FiMessageCircle,
   FiArrowLeft,
 } from "react-icons/fi";
-import {
-  AiOutlineSearch,
-  AiOutlineHeart,
-  AiFillHome,
-} from "react-icons/ai";
+import { AiOutlineSearch, AiOutlineHeart, AiFillHome } from "react-icons/ai";
 import {
   MdFlight,
   MdHotel,
@@ -40,7 +36,6 @@ import SOSPage from "./SOSPage";
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/create.jsx";
 import Memories from "./loadMemories.jsx";
-
 
 const scrapbooks = [
   { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
@@ -80,13 +75,12 @@ function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [serverData, setServerData] = useState(null);
-  const [currPage, setCurrPage] = useState("home"); 
-  
+  const [currPage, setCurrPage] = useState("home");
+
   // Track onboarding step
   const [onboardingStep, setOnboardingStep] = useState(0);
 
-  const handleNextOnboarding = () =>
-    setOnboardingStep((prev) => prev + 1);
+  const handleNextOnboarding = () => setOnboardingStep((prev) => prev + 1);
 
   const handleSkipOnboarding = () => setOnboardingStep(3);
 
@@ -131,11 +125,7 @@ function App() {
       {activeTab === "home" && (
         <header className="header">
           <div className="header-left">
-            <img
-              className="avatar"
-              src={PLACEHOLDER_AVATAR}
-              alt="Profile"
-            />
+            <img className="avatar" src={PLACEHOLDER_AVATAR} alt="Profile" />
             <div>
               <p className="hey-text">Hello, User 👋</p>
             </div>
@@ -162,33 +152,32 @@ function App() {
           >
             <FiArrowLeft />
           </button>
-          <div className="header-left" style={{ flex: 1, justifyContent: 'center' }}>
+          <div
+            className="header-left"
+            style={{ flex: 1, justifyContent: "center" }}
+          >
             <p className="hey-text">Map View</p>
           </div>
         </header>
       )}
 
       {/* SLIDE-OUT MENU */}
-      <SideMenu
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-      />
+      <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       {/* SEARCH - Only show on home */}
       {activeTab === "home" && (
         <section className="search-section">
           <div className="search-bar">
             <AiOutlineSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Find things you interested in"
-            />
+            <input type="text" placeholder="Find things you interested in" />
           </div>
         </section>
       )}
 
       {/* MAIN CONTENT */}
-      <main className={`content ${activeTab === "maps" ? "content--maps" : ""}`}>
+      <main
+        className={`content ${activeTab === "maps" ? "content--maps" : ""}`}
+      >
         {activeTab === "home" && (
           <>
             {/* Travel Stats Cards */}
@@ -283,17 +272,17 @@ function App() {
             {/* Travel Tips Section */}
             <SectionHeader title="Travel Tips" />
             <div className="tips-container">
-              <TipCard 
+              <TipCard
                 emoji="💡"
                 title="Pack Light"
                 description="Bring only essentials for easier travel"
               />
-              <TipCard 
+              <TipCard
                 emoji="📱"
                 title="Stay Connected"
                 description="Download offline maps before your trip"
               />
-              <TipCard 
+              <TipCard
                 emoji="💰"
                 title="Budget Smart"
                 description="Set daily spending limits to track expenses"
@@ -301,17 +290,18 @@ function App() {
             </div>
           </>
         )}
-        
+
         {activeTab === "maps" && <MapsPage />}
-        {activeTab === "create" && (
-          <Memories />
-  // <UploadFiles
-  //   onUploadComplete={(data) => {
-  //     setServerData(data);
-  //     setActiveTab(""); // or whatever page you want next
-  //   }}
-  // />
-)}
+        {activeTab === "upload" && (
+          <UploadFiles
+            onUploadComplete={(data) => {
+              setServerData(data);
+              setActiveTab("canvas"); // or whatever page you want next
+            }}
+          />
+        )}
+        {activeTab === "create" && <Memories setActiveTab={setActiveTab} />}
+        {activeTab === "canvas" && <Create serverData={serverData}/>}
 
         {activeTab === "sos" && (
           <SOSPage
@@ -322,7 +312,11 @@ function App() {
       </main>
 
       {/* BOTTOM NAV */}
-      <nav className="bottom-nav" role="navigation" aria-label="Main navigation">
+      <nav
+        className="bottom-nav"
+        role="navigation"
+        aria-label="Main navigation"
+      >
         <NavItem
           icon={<AiFillHome />}
           active={activeTab === "home"}
@@ -341,14 +335,8 @@ function App() {
           onClick={() => setActiveTab("create")}
           label="Create"
         />
-        <NavItem 
-          icon={<FiMessageCircle />}
-          label="Chat"
-        />
-        <NavItem 
-          icon={<MdCollectionsBookmark />}
-          label="Collections"
-        />
+        <NavItem icon={<FiMessageCircle />} label="Chat" />
+        <NavItem icon={<MdCollectionsBookmark />} label="Collections" />
       </nav>
     </div>
   );

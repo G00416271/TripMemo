@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
-export default function Memories() {
+
+export default function Memories({setActiveTab }) {
   const [memories, setMemories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [memoryName, setMemoryName] = useState("");
@@ -127,11 +128,11 @@ export default function Memories() {
     
 
 
-    
 
 
 
 
+    setActiveTab("upload");
 
 
 
