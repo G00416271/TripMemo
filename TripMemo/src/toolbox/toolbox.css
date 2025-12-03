@@ -1,0 +1,28 @@
+.toolbar-item {
+  transition: transform 0.04s ease, box-shadow 0.2s ease;
+}
+
+.toolbar-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 0 2px rgba(26, 1, 255, 0.5);
+}
+
+
+.active-tool {
+
+  border-bottom: solid 4px rgba(26, 1, 255, 0.5);
+  border-left: solid 4px rgba(26, 1, 255, 0.5);
+  transform: translateX(4px);
+}
+
+.assetImage {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.assetImage:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 0 2px rgba(26, 1, 255, 0.5);
+}
