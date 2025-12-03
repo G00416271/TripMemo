@@ -1,0 +1,15 @@
+/* updated: added fonts css */
+@font-face {
+  font-family: 'Dunkin';
+  src: url('./assets/dunkin.otf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Gontserrat';
+  src: url('./assets/Gontserrat.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+

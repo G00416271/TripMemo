@@ -1,8 +1,10 @@
 //App.jsx
 import React, { useState } from "react";
 import "./App.css";
+import "./fonts.css";  //updated: added fonts
 import "./onboarding.css";
 
+import OnboardingLogo from "./onboarding/OnboardingLogo"; //updated
 import Onboarding1 from "./onboarding/Onboarding1";
 import Onboarding2 from "./onboarding/Onboarding2";
 import Onboarding3 from "./onboarding/Onboarding3";
@@ -33,8 +35,11 @@ import { IoIosAirplane } from "react-icons/io";
 
 import SideMenu from "./SideMenu";
 import MapsPage from "./MapsPage";
-import SOSPage from "./SOSPage";
+import { SOSPage } from "./SOSPage"; // updated: added {} around SOSPage
 
+// updated: these lines allow the login and signup pages to be imported
+import LoginPage, { SignupPage } from "./LoginPage";
+import "./Auth.css";
 
 
 const scrapbooks = [
@@ -48,16 +53,26 @@ const bucketList = [
 ];
 
 
+
 const PLACEHOLDER_AVATAR =
   "https://www.pngitem.com/pimgs/m/146-1468479_my-profile-icon-blank-profile-picture-circle-hd.png";
 
+
+  
+
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+   //updated: added for username display TEMPORARY
 
   const [activeTab, setActiveTab] = useState("home")
 
   const [emergencyContacts, setEmergencyContacts] = useState([]);
 
+  
+  const [isAuthenticated, setIsAuthenticated] = useState(false); //updated
+  const [showSignup, setShowSignup] = useState(false); //updated
+const [userName, setUserName] = useState("User");
   
   // NEW: track which onboarding screen the user is on
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -65,14 +80,42 @@ function App() {
   const handleNextOnboarding = () =>
     setOnboardingStep((prev) => prev + 1);
 
-  const handleSkipOnboarding = () => setOnboardingStep(3); // jump to main app
+  const handleSkipOnboarding = () => setOnboardingStep(4); // updated: change from 3 to 4 jump to main app
 
-  // --- SHOW ONBOARDING FIRST ---
 
-  if (onboardingStep === 0) {
+// updated: logic to display users name after login
+if (!isAuthenticated) {
+  if (showSignup) {
+    return (
+      <SignupPage
+        onSignup={(name) => {
+          setUserName(name);
+          setIsAuthenticated(true);
+          setOnboardingStep(0);
+        }}
+        onSwitchToLogin={() => setShowSignup(false)}
+      />
+    );
+  }
+  
+  return (
+    <LoginPage
+      onLogin={(name) => {
+        setUserName(name);
+        setIsAuthenticated(true);
+        setOnboardingStep(0);
+      }}
+      onSwitchToSignup={() => setShowSignup(true)}
+    />
+  );
+}
+
+
+
+  if (onboardingStep === 0) { //updated: add this block of code and change numbers 0-3
   return (
     <div className="app-root">
-      <Onboarding1
+      <OnboardingLogo
         onNext={handleNextOnboarding}
         onSkip={handleSkipOnboarding}
       />
@@ -80,10 +123,13 @@ function App() {
   );
 }
 
-if (onboardingStep === 1) {
+
+  if (onboardingStep === 1) {
   return (
     <div className="app-root">
-      <Onboarding2
+    
+
+      <Onboarding1
         onNext={handleNextOnboarding}
         onSkip={handleSkipOnboarding}
       />
@@ -94,6 +140,21 @@ if (onboardingStep === 1) {
 if (onboardingStep === 2) {
   return (
     <div className="app-root">
+    
+
+      <Onboarding2
+        onNext={handleNextOnboarding}
+        onSkip={handleSkipOnboarding}
+      />
+    </div>
+  );
+}
+
+if (onboardingStep === 3) {
+  return (
+    <div className="app-root">
+  
+
       <Onboarding3
         onNext={handleNextOnboarding}
         onSkip={handleSkipOnboarding}
@@ -108,6 +169,8 @@ if (onboardingStep === 2) {
     <div className="app-root">
       <div className="phone-shell">
         <div className="phone-inner">
+   
+
           {/* HEADER */}
           {activeTab === "home" && (
   <header className="header">
@@ -118,8 +181,9 @@ if (onboardingStep === 2) {
         alt="Profile"
       />
               <div>
-                <p className="hey-text">Hello, User 👋</p>
+                <p className="hey-text">Hello, {userName} 👋</p> {/*updated: displays users name */}
               </div>
+
             </div>
 
             {/* Hamburger button */}
@@ -161,7 +225,8 @@ if (onboardingStep === 2) {
         type="text"
         placeholder="Find things you interested in"
       />
-    </div>
+  </div>
+
   </section>
 )}
 
@@ -272,8 +337,8 @@ if (onboardingStep === 2) {
             <NavItem icon={<MdCollectionsBookmark />} />      {/* Collections */}
           </nav>
         </div>
-      </div>
-    </div>
+         </div>
+          </div>
   );
 }
 
