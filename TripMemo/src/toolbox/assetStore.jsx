@@ -40,7 +40,7 @@ export default function BottomDrawer({ serverData }) {
 
   // --- fetch images ---
   useEffect(() => {
-    const tags = serverData?.tags;
+    const tags = serverData?.matchedUserInterests?.inputTags;
     if (!tags) return;
 
     const fetchImages = async () => {
@@ -48,7 +48,7 @@ export default function BottomDrawer({ serverData }) {
         fetch(
           `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(
             tag
-          )}&image_type=photo&per_page=10`
+          )}&image_type=photo&per_page=5`
         ).then((r) => r.json())
       );
 

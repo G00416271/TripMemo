@@ -241,6 +241,7 @@ try {
 return {
   tags: parsedTags,
   locations: result.locationsArray
+  //tags : ['galway christmas market', 'galway', 'cake', 'volleyball'],
 };
 }
 // processImages(["./images/IMG_3941.HEIC"]).then(console.log);
