@@ -39,6 +39,7 @@ import SOSPage from "./SOSPage";
 // import editor components
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/create.jsx";
+import Memories from "./loadMemories.jsx";
 
 
 const scrapbooks = [
@@ -303,12 +304,13 @@ function App() {
         
         {activeTab === "maps" && <MapsPage />}
         {activeTab === "create" && (
-  <UploadFiles
-    onUploadComplete={(data) => {
-      setServerData(data);
-      setActiveTab(""); // or whatever page you want next
-    }}
-  />
+          <Memories />
+  // <UploadFiles
+  //   onUploadComplete={(data) => {
+  //     setServerData(data);
+  //     setActiveTab(""); // or whatever page you want next
+  //   }}
+  // />
 )}
 
         {activeTab === "sos" && (

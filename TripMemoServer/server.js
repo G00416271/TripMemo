@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
 import getNodes from './neoDB.js';
+import getMemories from './MemoriesReq.js';
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -114,6 +115,16 @@ app.post("/process-images", upload.single("file"), async (req, res) => {
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {
     const result = await getInterests(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error("Error in /interestReq route:", err);
+    res.status(500).json({ error: "Processing failed" });
+  }
+});
+
+app.post("/memories", upload.none(), async (req, res) => {
+  try {
+    const result = await getMemories(req.body);
     res.json(result);
   } catch (err) {
     console.error("Error in /interestReq route:", err);
