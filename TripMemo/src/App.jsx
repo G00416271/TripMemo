@@ -5,10 +5,12 @@ import FileUpload from "./pages/fileUpload.jsx";
 import "./onboarding.css";
 import { createContext } from "react";
 import "./fonts.css";
+
 import OnboardingLogo from "./onboarding/OnboardingLogo";
 import Onboarding1 from "./onboarding/Onboarding1";
 import Onboarding2 from "./onboarding/Onboarding2";
 import Onboarding3 from "./onboarding/Onboarding3";
+
 
 // updated: these lines allow the login and signup pages to be imported
 import LoginPage, { SignupPage } from "./LoginPage";

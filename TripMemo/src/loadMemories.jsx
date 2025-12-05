@@ -9,6 +9,8 @@ export default function Memories({setActiveTab }) {
   const [activeMenu, setActiveMenu] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memoryToDelete, setMemoryToDelete] = useState(null);
+
+  //current user id
   const user = "10101019";
 
   const DBentry = async (user_id, mn) => {
