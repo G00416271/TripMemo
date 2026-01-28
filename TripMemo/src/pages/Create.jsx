@@ -6,6 +6,7 @@ import BottomDrawer from '../toolbox/assetStore.jsx';
 import TestGemini from '../test.jsx';    
 import { useState } from "react";
 import React from "react";
+import "./Create.css"
 
 
 
@@ -18,43 +19,26 @@ export default function Create({ serverData, setActiveTab }) {
 
   return (
     <>
-      {/* simple switch button
-      <button 
-        onClick={() => setPage(page === "main" ? "second" : "main")}
-        style={{ position: "absolute", top: 90, left: 10, zIndex: 99999 }}
-      >
-        Switch Page
-      </button> */}
-
-        <>
+        <div className="create-layout">
           <div id="navbar">
             <NavBar setActiveTab={setActiveTab}/>
           </div>
+          
+          {/* toolbar on the left */}
+          <Tools/> 
 
-          <div style={{ 
-            display: "flex", 
-            zIndex: 99999, 
-            position: "absolute", 
-            top: 10, 
-            right: 10, 
-            background: "white", 
-            padding: 10, 
-            borderRadius: 8, 
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)" 
-          }}>
-            <TestDBButton />
-          </div>
 
-          <Tools />
-
-          <div style={{ display: "flex" }}>
-            <BottomDrawer serverData={serverData}/>
-          </div>
-
-          <div id="canvas-container">
+          {/* main screen */}
+          <div id="canvas-wrapper">
             <Canvas />
           </div>
-        </>
+
+
+          {/* where images from the tags are stored */}
+           <div>
+            <BottomDrawer serverData={serverData}/>
+          </div>
+        </div>
     </>
   );
 }

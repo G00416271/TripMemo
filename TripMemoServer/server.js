@@ -4,10 +4,18 @@ import cors from 'cors';
 import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
+import cookieParser from "cookie-parser";
+
+
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
 import getNodes from './neoDB.js';
 import getMemories from './MemoriesReq.js';
+import { neoConnectTest } from './neoConnectTest.js';
+import { mysqlConnectTest } from './dbConnTest.js';
+import login from './login-register.js'
+import requireAuth from "./auth.js"
+import db from "./db.js"
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +25,26 @@ const app = express();
 const PORT = 5000;
 
 // Enable CORS
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:5173", 
+  credentials: true
+}));
+
+// app.options("/*", cors({
+//   origin: "http://localhost:5173",
+//   credentials: true
+// }));
+
+app.use(cookieParser());
+
+// const requireAuth = (req, res, next) => {
+//   const userId = req.cookies.session;
+//   if (!userId) return res.sendStatus(401);
+//   req.userId = userId;
+//   next();
+// };
+
+
 
 // Parse requests
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -133,6 +160,63 @@ app.post("/memories", upload.none(), async (req, res) => {
 });
 
 
+
+
+
+//-------------------------------------
+//  REGISTER/LOGIN
+//-------------------------------------
+app.post("/login", upload.none(), async (req, res) => {
+  const { email, username, password } = req.body;
+
+  if (!password || (!username && !email)) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
+
+  const user = await login(email, username, password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  res.cookie("session", user.user_id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 86400000,
+  });
+
+
+   return res.status(200).json(user);
+});
+
+
+//auth after login
+app.get("/me", requireAuth, async (req, res) => {
+  const [rows] = await db.execute(
+    "SELECT user_id, username, email FROM users WHERE user_id = ?",
+    [req.userId]
+  );
+
+  res.json(rows[0]);
+});
+
+
+
+//connection tests
+app.get("/ping", (req, res) => {
+  res.send("pong");
+});
+
+app.get("/neoping", async (req, res) => {
+  const result = await neoConnectTest();
+  res.json(result);
+});
+
+app.get("/mysqlping", async (req, res) => {
+  const result = await mysqlConnectTest();
+  res.json(result);
+});
+
+
+
 // ---------------------------------------
 //  START SERVER
 // ---------------------------------------
@@ -143,3 +227,9 @@ try {
 } catch (err) {
   console.error("Server startup error:", err);
 }
+
+
+
+
+//notes: 
+// Strip metadata from Client side. 

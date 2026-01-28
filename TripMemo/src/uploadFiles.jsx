@@ -8,6 +8,33 @@ export default function UploadFiles({ onUploadComplete }) {
     e.preventDefault();
     if (!file) return;
 
+    // ---------- Extract EXIF ----------
+    async function extractMetadata(imagePaths) {
+      const out = [];
+
+      try {
+        for (const p of imagePaths) {
+          try {
+            const meta = await exiftool.readRaw(p, [
+              "-n",
+              "-GPSLatitude",
+              "-GPSLongitude",
+            ]);
+            out.push({ path: p, metadata: meta });
+          } catch {
+            out.push({
+              path: p,
+              metadata: { GPSLatitude: null, GPSLongitude: null },
+            });
+          }
+        }
+      } finally {
+        await exiftool.end();
+      }
+
+      return out;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("user", "Tim");
@@ -24,13 +51,11 @@ export default function UploadFiles({ onUploadComplete }) {
         setStatus("Upload complete ");
 
         const data = await res.json();
-        
 
         // 🔥 send data back to App.jsx
         if (onUploadComplete) {
-          onUploadComplete(data)
-          
-        };
+          onUploadComplete(data);
+        }
       } else {
         setStatus("Upload failed ");
       }

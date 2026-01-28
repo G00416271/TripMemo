@@ -6,27 +6,74 @@ import { FcGoogle } from "react-icons/fc";
 import { FaApple, FaFacebook } from "react-icons/fa";
 import styles from "./LoginPage.module.css";
 
-
 // Import images
 import loginImage from "./assets/login_img.png";
 import signupImage from "./assets/signup_img.png";
 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const [email, setEmail] = useState("");
+  const [userName, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (email && password) {
-      // Extract name from email (before @)
-      const userName = email.split('@')[0];
-      onLogin(userName);
-    } else {
-      alert("Please enter email and password");
-    }
+  const login = async (email, userName, password) => {
+    const fd = new FormData();
+    fd.append("email", email);
+    fd.append("username", userName);
+    fd.append("password", password);
+    console.log(fd.email)
+    console.log(Object.fromEntries(fd.entries()));// testing
+
+    const res = await fetch("http://localhost:5000/login", {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || "Login failed");
+
+    return data;
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if ((!email && !userName) || !password) {
+      alert("Enter username or email, and password");
+      return;
+    }
+
+  try {
+  const data = await login(email, userName, password);
+  console.log (data.username);
+  onLogin(data.username);
+} catch (err) {
+  alert(err.message);
+}
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   return (
     <div className="app-root">
@@ -35,9 +82,9 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
           {/* Illustration Section */}
           <div className="auth-illustration">
             <div className="auth-hero-image">
-              <img 
-                src={loginImage} 
-                alt="Welcome" 
+              <img
+                src={loginImage}
+                alt="Welcome"
                 className="auth-illustration-img"
               />
             </div>
@@ -46,8 +93,11 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
           {/* Form Section */}
           <div className="auth-form-container">
             <h1 className="auth-form-title">Welcome back!</h1>
-            
-            <form className="auth-form-content login-form" onSubmit={handleSubmit}>
+
+            <form
+              className="auth-form-content login-form"
+              onSubmit={handleSubmit}
+            >
               <div className="auth-input-wrapper">
                 <label className="auth-label">Email address</label>
                 <input
@@ -141,22 +191,22 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!name || !email || !password || !confirmPassword) {
       alert("Please fill in all fields");
       return;
     }
-    
+
     if (password !== confirmPassword) {
       alert("Passwords don't match");
       return;
     }
-    
+
     if (password.length < 6) {
       alert("Password must be at least 6 characters");
       return;
     }
-    
+
     onSignup();
   };
 
@@ -167,9 +217,9 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
           {/* Illustration Section */}
           <div className="auth-illustration signup-illustration">
             <div className="auth-hero-image">
-              <img 
-                src={signupImage} 
-                alt="Create Account" 
+              <img
+                src={signupImage}
+                alt="Create Account"
                 className="auth-illustration-img"
               />
             </div>
@@ -178,7 +228,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
           {/* Form Section */}
           <div className="auth-form-container">
             <h1 className="auth-form-title">Create Account</h1>
-            
+
             <form className="auth-form-content" onSubmit={handleSubmit}>
               <div className="auth-input-wrapper">
                 <label className="auth-label">Full name</label>
@@ -275,19 +325,3 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

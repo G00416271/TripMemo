@@ -1,0 +1,13 @@
+.create-layout {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+}
+
+.canvas-wrapper {
+  overflow: hidden;
+}
+
+.bottom-drawer {
+  height: 220px; /* whatever you want */
+}

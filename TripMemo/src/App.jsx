@@ -1,15 +1,21 @@
 //App.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+
 import "./App.css";
 import FileUpload from "./pages/fileUpload.jsx";
 import "./onboarding.css";
 import { createContext } from "react";
 import "./fonts.css";
 
-import OnboardingLogo from "./onboarding/OnboardingLogo";
-import Onboarding1 from "./onboarding/Onboarding1";
-import Onboarding2 from "./onboarding/Onboarding2";
-import Onboarding3 from "./onboarding/Onboarding3";
+fetch("http://localhost:5000/me", {
+  credentials: "include"
+});
+
+
+// import OnboardingLogo from "./onboarding/OnboardingLogo";
+// import Onboarding1 from "./onboarding/Onboarding1";
+// import Onboarding2 from "./onboarding/Onboarding2";
+// import Onboarding3 from "./onboarding/Onboarding3";
 
 
 // updated: these lines allow the login and signup pages to be imported
@@ -92,11 +98,21 @@ function App() {
   //<Create setActiveTab={setActiveTab}/>
 
   // Track onboarding step
-  const [onboardingStep, setOnboardingStep] = useState(0);
+  // const [onboardingStep, setOnboardingStep] = useState(0);
 
-  const handleNextOnboarding = () => setOnboardingStep((prev) => prev + 1);
+  // const handleNextOnboarding = () => setOnboardingStep((prev) => prev + 1);
 
-  const handleSkipOnboarding = () => setOnboardingStep(4);
+  // const handleSkipOnboarding = () => setOnboardingStep(4);
+
+  useEffect(() => {
+  fetch("http://localhost:5000/me", { credentials: "include" })
+    .then(res => (res.ok ? res.json() : null))
+    .then(user => {
+      if (!user) return;
+      setUserName(user.username);
+      setIsAuthenticated(true);
+    });
+}, []);
 
   // updated: logic to display users name after login
   if (!isAuthenticated) {
@@ -106,7 +122,7 @@ function App() {
           onSignup={(name) => {
             setUserName(name);
             setIsAuthenticated(true);
-            setOnboardingStep(0);
+            // setOnboardingStep(0);
           }}
           onSwitchToLogin={() => setShowSignup(false)}
         />
@@ -118,58 +134,58 @@ function App() {
         onLogin={(name) => {
           setUserName(name);
           setIsAuthenticated(true);
-          setOnboardingStep(0);
+          // setOnboardingStep(0);
         }}
         onSwitchToSignup={() => setShowSignup(true)}
       />
     );
   }
 
-  if (onboardingStep === 0) {
-    //updated: add this block of code and change numbers 0-3
-    return (
-      <div className="app-root">
-        <OnboardingLogo
-          onNext={handleNextOnboarding}
-          onSkip={handleSkipOnboarding}
-        />
-      </div>
-    );
-  }
+  // if (onboardingStep === 0) {
+  //   //updated: add this block of code and change numbers 0-3
+  //   return (
+  //     <div className="app-root">
+  //       <OnboardingLogo
+  //         onNext={handleNextOnboarding}
+  //         onSkip={handleSkipOnboarding}
+  //       />
+  //     </div>
+  //   );
+  // }
 
   // --- SHOW ONBOARDING FIRST ---
-  if (onboardingStep === 1) {
-    return (
-      <div className="app-root">
-        <Onboarding1
-          onNext={handleNextOnboarding}
-          onSkip={handleSkipOnboarding}
-        />
-      </div>
-    );
-  }
+  // if (onboardingStep === 1) {
+  //   return (
+  //     <div className="app-root">
+  //       <Onboarding1
+  //         onNext={handleNextOnboarding}
+  //         onSkip={handleSkipOnboarding}
+  //       />
+  //     </div>
+  //   );
+  // }
 
-  if (onboardingStep === 2) {
-    return (
-      <div className="app-root">
-        <Onboarding2
-          onNext={handleNextOnboarding}
-          onSkip={handleSkipOnboarding}
-        />
-      </div>
-    );
-  }
+  // if (onboardingStep === 2) {
+  //   return (
+  //     <div className="app-root">
+  //       <Onboarding2
+  //         onNext={handleNextOnboarding}
+  //         onSkip={handleSkipOnboarding}
+  //       />
+  //     </div>
+  //   );
+  // }
 
-  if (onboardingStep === 3) {
-    return (
-      <div className="app-root">
-        <Onboarding3
-          onNext={handleNextOnboarding}
-          onSkip={handleSkipOnboarding}
-        />
-      </div>
-    );
-  }
+  // if (onboardingStep === 3) {
+  //   return (
+  //     <div className="app-root">
+  //       <Onboarding3
+  //         onNext={handleNextOnboarding}
+  //         onSkip={handleSkipOnboarding}
+  //       />
+  //     </div>
+  //   );
+  // }
 
   // --- Main app after onboarding ---
   return (

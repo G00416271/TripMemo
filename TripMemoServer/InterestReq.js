@@ -1,19 +1,22 @@
 import mysql from "mysql2/promise";
 
 
-export default async function getInterests(tags = [], fields) {
 
-
+//Function is meant to get interst tags from database
+export default async function getInterests(tags = [], fields) {  //takes extracted tags , user details(username, passwordhash)
   const u = fields.user;
   tags = tags
   .flat(Infinity)
   .filter(x => typeof x === "string")
   .map(x => x.toLowerCase());
 
+  //turns tags into array
   if (!Array.isArray(tags)) {
     tags = [tags];
   }
 
+
+  //mysql connection
   const db = await mysql.createConnection({
     host: "tripmemo",
     user: "root",
@@ -21,11 +24,15 @@ export default async function getInterests(tags = [], fields) {
     database: "tripmemodb",
   });
 
+
+  //sql querey
   const [rows] = await db.execute(
     "SELECT user_profile FROM users WHERE username = ?",
+    //returns all information regarding the user 
     [u]
   );
 
+  //user t
   if (rows.length === 0) {
     await db.end();
     return { error: "No user found" };
