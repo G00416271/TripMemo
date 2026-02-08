@@ -10,12 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.1.17",
-    "exiftool": "^0.0.3",
+    "exifreader": "^4.36.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.555.0",
-    "mysql2": "^3.15.3",
     "perfect-freehand": "^1.2.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

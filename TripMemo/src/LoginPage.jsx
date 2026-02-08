@@ -5,25 +5,26 @@ import { FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import { FcGoogle } from "react-icons/fc";
 import { FaApple, FaFacebook } from "react-icons/fa";
 import styles from "./LoginPage.module.css";
+import { useAuth } from "./Auth.jsx";
 
 // Import images
 import loginImage from "./assets/login_img.png";
 import signupImage from "./assets/signup_img.png";
 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
+  const { login } = useAuth();
+
   const [email, setEmail] = useState("");
   const [userName, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  const login = async (email, userName, password) => {
+  const doLogin = async (email, userName, password) => {
     const fd = new FormData();
     fd.append("email", email);
     fd.append("username", userName);
     fd.append("password", password);
-    console.log(fd.email)
-    console.log(Object.fromEntries(fd.entries()));// testing
 
     const res = await fetch("http://localhost:5000/login", {
       method: "POST",
@@ -32,9 +33,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     });
 
     const data = await res.json();
-
     if (!res.ok) throw new Error(data.error || "Login failed");
-
     return data;
   };
 
@@ -46,34 +45,19 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
       return;
     }
 
-  try {
-  const data = await login(email, userName, password);
-  console.log (data.username);
-  onLogin(data.username);
-} catch (err) {
-  alert(err.message);
-}
+    try {
+      const data = await doLogin(email, userName, password);
+      login({
+        user_id: data.user_id,
+        username: data.username,
+        email: data.email,
+      });
+
+      onLogin(data.username);
+    } catch (err) {
+      alert(err.message);
+    }
   };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   return (
     <div className="app-root">
@@ -182,17 +166,29 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
 
 // SignupPage.jsx
 export function SignupPage({ onSignup, onSwitchToLogin }) {
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!name || !email || !password || !confirmPassword) {
+    //validations
+
+    if (
+      !username ||
+      !firstName ||
+      !lastName ||
+      !email ||
+      !password ||
+      !confirmPassword
+    ) {
       alert("Please fill in all fields");
       return;
     }
@@ -207,7 +203,47 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
       return;
     }
 
-    onSignup();
+    const register = async ({
+      username,
+      firstName,
+      lastName,
+      email,
+      password,
+    }) => {
+      const fd = new FormData();
+      fd.append("username", username);
+      fd.append("firstName", firstName);
+      fd.append("lastName", lastName);
+      fd.append("email", email);
+      fd.append("password", password);
+
+      const res = await fetch("http://localhost:5000/register", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+
+      // handle non-JSON error pages:
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+
+      if (!res.ok) throw new Error(data?.error || "account was not created");
+
+      return data;
+    };
+
+    try {
+      const data = await register({
+        username,
+        firstName,
+        lastName,
+        email,
+        password,
+      });
+      onSignup(data.username);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
@@ -231,12 +267,34 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
 
             <form className="auth-form-content" onSubmit={handleSubmit}>
               <div className="auth-input-wrapper">
-                <label className="auth-label">Full name</label>
+                <label className="auth-label">Username</label>
                 <input
                   type="text"
-                  placeholder="Enter your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Choose a username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="auth-text-input"
+                />
+              </div>
+
+              <div className="auth-input-wrapper">
+                <label className="auth-label">First name</label>
+                <input
+                  type="text"
+                  placeholder="Enter your first name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="auth-text-input"
+                />
+              </div>
+
+              <div className="auth-input-wrapper">
+                <label className="auth-label">Last name</label>
+                <input
+                  type="text"
+                  placeholder="Enter your last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   className="auth-text-input"
                 />
               </div>

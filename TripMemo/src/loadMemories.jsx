@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "./Auth.jsx";
 
 
 export default function Memories({setActiveTab }) {
@@ -10,8 +11,12 @@ export default function Memories({setActiveTab }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memoryToDelete, setMemoryToDelete] = useState(null);
 
-  //current user id
-  const user = "10101019";
+  const { user, isLoggedIn, logout } = useAuth();
+  if (!isLoggedIn) return <p>Please log in</p>;
+  
+
+  
+
 
   const DBentry = async (user_id, mn) => {
     const fd = new FormData();
@@ -50,26 +55,28 @@ export default function Memories({setActiveTab }) {
         });
   };
 
-  useEffect(() => {
-    const fd = new FormData();
-    fd.append("action", "fetch");
-    fd.append("user_id", "10101019");
+useEffect(() => {
+  if (!user?.user_id) return; 
 
-    fetch("http://localhost:5000/memories", {
-      method: "POST",
-      body: fd,
+  const fd = new FormData();
+  fd.append("action", "fetch");
+  fd.append("user_id", user.user_id);
+
+  fetch("http://localhost:5000/memories", {
+    method: "POST",
+    body: fd,
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      setMemories(data);
+      setLoading(false);
     })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Fetched memories:", data);
-        setMemories(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error:", err);
-        setLoading(false);
-      });
-  }, []);
+    .catch((err) => {
+      console.error("Error:", err);
+      setLoading(false);
+    });
+}, [user]); 
+
 
   const handleCreateMemory = () => {
     setShowForm(true);
@@ -86,7 +93,8 @@ export default function Memories({setActiveTab }) {
       setMemories([...memories, newMemory]);
       setMemoryName("");
       setShowForm(false);
-      DBentry(user, memoryName);
+      DBentry(user.user_id, memoryName);
+
     }
   };
 

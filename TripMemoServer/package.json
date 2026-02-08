@@ -6,6 +6,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "exifreader": "^4.36.1",
     "exiftool-vendored": "^33.5.0",
     "express": "^5.2.1",
     "genai": "^0.0.18",

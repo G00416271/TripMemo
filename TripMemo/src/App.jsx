@@ -7,10 +7,6 @@ import "./onboarding.css";
 import { createContext } from "react";
 import "./fonts.css";
 
-fetch("http://localhost:5000/me", {
-  credentials: "include"
-});
-
 
 // import OnboardingLogo from "./onboarding/OnboardingLogo";
 // import Onboarding1 from "./onboarding/Onboarding1";
@@ -113,6 +109,18 @@ function App() {
       setIsAuthenticated(true);
     });
 }, []);
+
+const handleLogout = async () => {
+  await fetch("http://localhost:5000/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+
+  setIsAuthenticated(false);
+  setUserName("");
+  setShowSignup(false);
+};
+
 
   // updated: logic to display users name after login
   if (!isAuthenticated) {
@@ -232,7 +240,7 @@ function App() {
       )}
 
       {/* SLIDE-OUT MENU */}
-      <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} />
 
       {/* SEARCH - Only show on home */}
       {activeTab === "home" && (
@@ -366,7 +374,7 @@ function App() {
           <UploadFiles
             onUploadComplete={(data) => {
               setServerData(data);
-              setActiveTab("canvas"); // or whatever page you want next
+              setActiveTab("canvas"); 
             }}
           />
         )}

@@ -1,43 +1,48 @@
 import { useState } from "react";
+import ExifReader from "exifreader";
 
 export default function UploadFiles({ onUploadComplete }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
+  const [metadata, setMetadata] = useState(null);
+
+  async function extractMetadataFromFile(file) {
+    // read the raw bytes from the uploaded file (client-side)
+    const buffer = await file.arrayBuffer();
+
+    // parse EXIF (and other tags) from those bytes
+    const tags = ExifReader.load(buffer, { expanded: true });
+
+    return {
+      gpsLatitude: tags?.gps?.Latitude?.description ?? null,
+      gpsLongitude: tags?.gps?.Longitude?.description ?? null,
+      make: tags?.exif?.Make?.description ?? null,
+      model: tags?.exif?.Model?.description ?? null,
+      dateTimeOriginal: tags?.exif?.DateTimeOriginal?.description ?? null,
+      orientation: tags?.image?.Orientation?.description ?? null,
+    };
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!file) return;
 
-    // ---------- Extract EXIF ----------
-    async function extractMetadata(imagePaths) {
-      const out = [];
+    setStatus("Reading EXIF...");
 
-      try {
-        for (const p of imagePaths) {
-          try {
-            const meta = await exiftool.readRaw(p, [
-              "-n",
-              "-GPSLatitude",
-              "-GPSLongitude",
-            ]);
-            out.push({ path: p, metadata: meta });
-          } catch {
-            out.push({
-              path: p,
-              metadata: { GPSLatitude: null, GPSLongitude: null },
-            });
-          }
-        }
-      } finally {
-        await exiftool.end();
-      }
-
-      return out;
+    let meta;
+    try {
+      meta = await extractMetadataFromFile(file);
+      setMetadata(meta);
+    } catch (err) {
+      console.error(err);
+      setStatus("Could not read EXIF (image may have none).");
+      meta = null;
     }
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("user", "Tim");
+    formData.append("metadata", JSON.stringify(meta)); // send EXIF to backend too
 
     setStatus("Uploading...");
 
@@ -47,20 +52,18 @@ export default function UploadFiles({ onUploadComplete }) {
         body: formData,
       });
 
-      if (res.ok) {
-        setStatus("Upload complete ");
-
-        const data = await res.json();
-
-        // 🔥 send data back to App.jsx
-        if (onUploadComplete) {
-          onUploadComplete(data);
-        }
-      } else {
-        setStatus("Upload failed ");
+      if (!res.ok) {
+        setStatus("Upload failed");
+        return;
       }
+
+      const data = await res.json();
+      setStatus("Upload complete");
+
+      onUploadComplete?.(data);
     } catch (err) {
-      setStatus("Error connecting to server ");
+      console.error(err);
+      setStatus("Error connecting to server");
     }
   }
 
@@ -74,8 +77,8 @@ export default function UploadFiles({ onUploadComplete }) {
             type="file"
             accept="image/*"
             capture="environment"
-            onChange={(e) => setFile(e.target.files[0])}
-            className="block w-full text-sm text-gray-300 
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-gray-300
                        file:mr-4 file:py-2 file:px-4
                        file:rounded-lg file:border-0
                        file:text-sm file:font-semibold
@@ -95,13 +98,15 @@ export default function UploadFiles({ onUploadComplete }) {
 
         {file && (
           <div className="mt-4 text-sm text-gray-400">
-            <p>
-              <strong>Name:</strong> {file.name}
-            </p>
-            <p>
-              <strong>Size:</strong> {file.size} bytes
-            </p>
+            <p><strong>Name:</strong> {file.name}</p>
+            <p><strong>Size:</strong> {file.size} bytes</p>
           </div>
+        )}
+
+        {metadata && (
+          <pre className="mt-4 text-xs bg-gray-950 p-3 rounded-lg overflow-auto">
+            {JSON.stringify(metadata, null, 2)}
+          </pre>
         )}
       </div>
     </div>

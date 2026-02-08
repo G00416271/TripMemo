@@ -13,9 +13,10 @@ import getNodes from './neoDB.js';
 import getMemories from './MemoriesReq.js';
 import { neoConnectTest } from './neoConnectTest.js';
 import { mysqlConnectTest } from './dbConnTest.js';
-import login from './login-register.js'
+import login, { register } from "./login-register.js";
 import requireAuth from "./auth.js"
 import db from "./db.js"
+import { clipAnalyse } from './clipAnalyse.js';  
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -67,73 +68,120 @@ app.get('/icons', (req, res) => {
 //  FILE UPLOAD ENDPOINT (DATASCRAPER)
 // ---------------------------------------
 const upload = multer({
-  dest: path.join(__dirname, "uploads/")
+  storage: multer.memoryStorage()
 });
+
+
+// app.post("/process-images", upload.single("file"), async (req, res) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ error: "No file uploaded" });
+//     }
+
+//     const fileBuffer = req.file.buffer;
+//     const fileName = req.file.originalname;
+
+
+//     let filePath;
+//     try {
+//       filePath = req.file.path;
+//     } catch (err) {
+//       console.error("File path error:", err);
+//       return res.status(500).json({ error: "Upload failed" });
+//     }
+
+//     // Process images
+//     let imagesResult = {};
+//     try {
+//       imagesResult = await processImages([filePath]);
+//     } catch (err) {
+//       console.error("processImages() error:", err);
+//       return res.status(500).json({ error: "Image processing failed" });
+//     }
+
+
+//     //clip
+//     let clipAnalysis = {};
+//     try {
+//       clipAnalysis = await clipAnalyseBytes([{ name: fileName, buffer: fileBuffer }]);
+//     } catch (err) {
+//       console.error("clipAnalyseBytes() error:", err);
+//       return res.status(500).json({ error: "CLIP analysis failed" });
+//     }
+
+    
+
+
+//     // Extract tags safely
+//     let tags = [];
+//     try {
+//       tags = imagesResult.tags || [];
+//     } catch (err) {
+//       console.error("Tag extraction error:", err);
+//       tags = [];
+//     }
+
+//     // User interest matching
+//     let interestsResult = {};
+//     try {
+//       interestsResult = await getInterests(tags, req.body);
+//     } catch (err) {
+//       console.error("getInterests() error:", err);
+//       interestsResult = { error: "Interest matching failed" };
+//     }
+
+//     // Neo4j matching
+//     let neo4jResult = [];
+//     try {
+//       neo4jResult = await getNodes(interestsResult.tags || []);
+//     } catch (err) {
+//       console.error("Neo4j getNodes() error:", err);
+//       neo4jResult = [];
+//     }
+
+//     // Final combined response
+//     const finalResult = {
+//       imageAnalysis: imagesResult,
+//       matchedUserInterests: interestsResult,
+//       relatedLocations: neo4jResult
+//     };
+
+//     res.json(finalResult);
+
+//   } catch (err) {
+//     console.error("Error in /process-images route:", err);
+//     res.status(500).json({ error: "Processing failed" });
+//   }
+// });
 
 app.post("/process-images", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    let filePath;
+    const fileBuffer = req.file.buffer;        // bytes in memory
+    const fileName = req.file.originalname;
+
+    // CLIP (Option B)
+    let clipAnalysis = [];
     try {
-      filePath = req.file.path;
+      clipAnalysis = await clipAnalyse([{ name: fileName, buffer: fileBuffer }]);
+      console.log("CLIP analysis result:", clipAnalysis);
     } catch (err) {
-      console.error("File path error:", err);
-      return res.status(500).json({ error: "Upload failed" });
+      console.error("clipAnalyse() error:", err);
+      return res.status(500).json({ error: "CLIP analysis failed" });
     }
 
-    // Process images
-    let imagesResult = {};
-    try {
-      imagesResult = await processImages([filePath]);
-    } catch (err) {
-      console.error("processImages() error:", err);
-      return res.status(500).json({ error: "Image processing failed" });
-    }
-
-    // Extract tags safely
-    let tags = [];
-    try {
-      tags = imagesResult.tags || [];
-    } catch (err) {
-      console.error("Tag extraction error:", err);
-      tags = [];
-    }
-
-    // User interest matching
-    let interestsResult = {};
-    try {
-      interestsResult = await getInterests(tags, req.body);
-    } catch (err) {
-      console.error("getInterests() error:", err);
-      interestsResult = { error: "Interest matching failed" };
-    }
-
-    // Neo4j matching
-    let neo4jResult = [];
-    try {
-      neo4jResult = await getNodes(interestsResult.tags || []);
-    } catch (err) {
-      console.error("Neo4j getNodes() error:", err);
-      neo4jResult = [];
-    }
-
-    // Final combined response
-    const finalResult = {
-      imageAnalysis: imagesResult,
-      matchedUserInterests: interestsResult,
-      relatedLocations: neo4jResult
-    };
-
-    res.json(finalResult);
+    // If you still want to run your old pipeline (processImages),
+    // it MUST be rewritten to accept buffers too.
+    // For now, return CLIP only:
+    return res.json(clipAnalysis);
 
   } catch (err) {
     console.error("Error in /process-images route:", err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
+
 
 
 // ---------------------------------------
@@ -188,6 +236,29 @@ app.post("/login", upload.none(), async (req, res) => {
 });
 
 
+//register
+app.post("/register", upload.none(), async (req, res) => {
+  const {username, firstName, lastName, email, password} = req.body;
+
+  if (!password || (!username && !email)) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
+
+  const user = await register(username, firstName, lastName, email, password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  res.cookie("session", user.user_id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 86400000,
+  });
+
+
+   return res.status(200).json(user);
+});
+
+
 //auth after login
 app.get("/me", requireAuth, async (req, res) => {
   const [rows] = await db.execute(
@@ -196,6 +267,18 @@ app.get("/me", requireAuth, async (req, res) => {
   );
 
   res.json(rows[0]);
+});
+
+
+//logout
+app.post("/logout", (req, res) => {
+  res.clearCookie("session", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false, // true in prod
+  });
+
+  res.sendStatus(200);
 });
 
 

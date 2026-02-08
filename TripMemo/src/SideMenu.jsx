@@ -1,6 +1,15 @@
 // src/SideMenu.jsx
 
-function SideMenu({ isOpen, onClose }) {
+function SideMenu({ isOpen,
+   onClose,
+  onLogout={handleLogout},
+  onProfile,
+  onSettings, })
+  
+  
+  
+  
+  {
   return (
     <div
       className={`side-menu-overlay ${isOpen ? "open" : ""}`}
@@ -9,6 +18,7 @@ function SideMenu({ isOpen, onClose }) {
       <div
         className="side-menu"
         onClick={(e) => e.stopPropagation()} // don't close when clicking inside
+        on
       >
         <div className="side-menu-header">
           <img
@@ -35,7 +45,7 @@ function SideMenu({ isOpen, onClose }) {
         </div>
 
         <div className="side-menu-section">
-          <button className="side-menu-item danger">Log out</button>
+          <button className="side-menu-item danger" onClick={onLogout} >Log out</button>
         </div>
       </div>
     </div>

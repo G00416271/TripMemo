@@ -1,13 +1,6 @@
-import mysql from "mysql2/promise";
 import bcrypt from "bcrypt";
+import db from "./db.js";
 
-//mysql connection
-const db = await mysql.createConnection({
-  host: "tripmemo",
-  user: "root",
-  password: "",
-  database: "tripmemodb",
-});
 
 //login
 export default async function login(e, u, p) {
@@ -54,4 +47,27 @@ export default async function login(e, u, p) {
   }
 }
 
-//login("", "tim", "kingofthepirates");
+export async function register(u, f, l, e, p) {
+  const saltRounds = 10;
+  const hash = await bcrypt.hash(p, saltRounds);
+
+    await db.execute(
+    `INSERT INTO users (username, first_name, last_name, email, password_hash)
+    VALUES (?, ?, ?, ?, ?);
+    `,
+    [u, f, l, e, hash]
+  );
+
+  const [rows] = await db.execute(
+    `SELECT user_id, email, username FROM users WHERE email = ?`,
+    [e],
+  );
+
+  return {
+      user_id: rows[0].user_id,
+      username: rows[0].username,
+      email: rows[0].email,
+    };
+}
+
+//register("testuser", "Test", "User", "test@example.com", "password123");
