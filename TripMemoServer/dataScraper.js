@@ -8,7 +8,7 @@ import NodeGeocoder from "node-geocoder";
 import fs from "fs";
 import sharp from "sharp";
 import heicConvert from "heic-convert";
-import * as locationWords from "./words.js";
+// import * as locationWords from "./words.json";
 
 // ---------------------------------------------
 // MASTER FUNCTION

@@ -14,6 +14,11 @@ export default function UploadFiles({ onUploadComplete }) {
     const tags = ExifReader.load(buffer, { expanded: true });
 
     return {
+    // GPS (best from expanded gps group)
+    gpsLatitude: tags.gps?.Latitude ?? null,
+    gpsLongitude: tags.gps?.Longitude ?? null,
+
+
       gpsLatitude: tags?.gps?.Latitude?.description ?? null,
       gpsLongitude: tags?.gps?.Longitude?.description ?? null,
       make: tags?.exif?.Make?.description ?? null,
@@ -22,6 +27,12 @@ export default function UploadFiles({ onUploadComplete }) {
       orientation: tags?.image?.Orientation?.description ?? null,
     };
   }
+
+
+
+//try uploading to database and seeing where w
+
+
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -33,6 +44,7 @@ export default function UploadFiles({ onUploadComplete }) {
     try {
       meta = await extractMetadataFromFile(file);
       setMetadata(meta);
+      console.log(meta);
     } catch (err) {
       console.error(err);
       setStatus("Could not read EXIF (image may have none).");

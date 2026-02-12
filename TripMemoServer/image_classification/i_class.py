@@ -1,7 +1,7 @@
 import sys, json, base64
 from io import BytesIO
 import torch, clip
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
@@ -11,7 +11,7 @@ classifier = [
     "objects", "landmarks", "people", "person", "nature",
     "food", "animals", "pets", "vehicles",
     "clothing", "sports", "technology",
-    "venue", "city", "artwork", "pub", "nightclub"
+    "venue", "city", "artwork", "pub", "nightclub", "drink"
 ]
 text = clip.tokenize(classifier).to(device)
 
@@ -37,21 +37,20 @@ def classify_image_bytes(img_bytes, threshold=15, top_k=2):
         return results
 
 def main():
-    raw = sys.stdin.read()
-    images = json.loads(raw)
-
-    labels = set()  # avoid duplicates
+    images = json.loads(sys.stdin.read())
+    labels = set()
 
     for img in images:
-        img_bytes = base64.b64decode(img["data"])
-        results = classify_image_bytes(img_bytes)
+        try:
+            img_bytes = base64.b64decode(img["data"])
+            results = classify_image_bytes(img_bytes)
+            for r in results:
+                labels.add(r["prediction"])
+        except (KeyError, base64.binascii.Error, UnidentifiedImageError):
+            # skip bad images instead of crashing everything
+            continue
 
-        for r in results:
-            labels.add(r["prediction"])
-
-    # print simple array
     print(json.dumps(list(labels)))
-
 
 if __name__ == "__main__":
     main()

@@ -17,6 +17,7 @@ import login, { register } from "./login-register.js";
 import requireAuth from "./auth.js"
 import db from "./db.js"
 import { clipAnalyse } from './clipAnalyse.js';  
+import stage from './imageStaging.js';
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -153,31 +154,25 @@ const upload = multer({
 //     res.status(500).json({ error: "Processing failed" });
 //   }
 // });
-
 app.post("/process-images", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    const fileBuffer = req.file.buffer;        // bytes in memory
-    const fileName = req.file.originalname;
-
-    // CLIP (Option B)
-    let clipAnalysis = [];
-    try {
-      clipAnalysis = await clipAnalyse([{ name: fileName, buffer: fileBuffer }]);
-      console.log("CLIP analysis result:", clipAnalysis);
-    } catch (err) {
-      console.error("clipAnalyse() error:", err);
-      return res.status(500).json({ error: "CLIP analysis failed" });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // If you still want to run your old pipeline (processImages),
-    // it MUST be rewritten to accept buffers too.
-    // For now, return CLIP only:
+    const stagedImages = await stage([req.file]);
+
+    // ✅ FIXED - add 'name' property
+    const payload = stagedImages.map(img => ({
+      name: req.file.originalname || 'image.jpg',  // Add this!
+      data: img.buffer.toString("base64")
+    }));
+
+    const clipAnalysis = await clipAnalyse(payload);
     return res.json(clipAnalysis);
 
   } catch (err) {
-    console.error("Error in /process-images route:", err);
+    console.error(err);
     res.status(500).json({ error: "Processing failed" });
   }
 });

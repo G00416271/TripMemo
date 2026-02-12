@@ -1,627 +1,502 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import getStroke from "perfect-freehand";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import { Stage, Layer, Rect, Line, Text } from "react-konva";
 import Tools from "./toolbox/toolbar.jsx";
-import SizeBadge from "./toolbox/UIElements.jsx";
 
-// --------- helpers to build elements ---------
-const createElement = (id, x1, y1, x2, y2, type) => {
-  switch (type) {
-    case "line":
-    case "rectangle":
-      // Just store coordinates – plain canvas will draw them
-      return { id, x1, y1, x2, y2, type };
+export default function CanvasPage() {
+  const viewW = "100vw";
+  const viewH = "100vh";
 
-    case "pencil":
-      return { id, type, points: [{ x: x1, y: y1 }] };
+  // which tool is selected from your toolbox
+  const [tool, setTool] = useState("selection");
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
-    case "text":
-      // x2/y2 will be updated once we know text width/height
-      return { id, type, x1, y1, x2, y2, text: "" };
-
-    default:
-      throw new Error(`Type not recognised: ${type}`);
-  }
-};
-
-const nearPoint = (x, y, x1, y1, name) =>
-  Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
-
-const distance = (a, b) =>
-  Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
-
-const onLine = (x1, y1, x2, y2, x, y, maxDistance = 1) => {
-  const a = { x: x1, y: y1 };
-  const b = { x: x2, y: y2 };
-  const c = { x, y };
-  const offset = distance(a, b) - (distance(a, c) + distance(b, c));
-  return Math.abs(offset) < maxDistance ? "inside" : null;
-};
-
-const positionWithinElement = (x, y, element) => {
-  const { type, x1, x2, y1, y2 } = element;
-  switch (type) {
-    case "line": {
-      const on = onLine(x1, y1, x2, y2, x, y);
-      const start = nearPoint(x, y, x1, y1, "start");
-      const end = nearPoint(x, y, x2, y2, "end");
-      return start || end || on;
-    }
-    case "rectangle": {
-      const topLeft = nearPoint(x, y, x1, y1, "tl");
-      const topRight = nearPoint(x, y, x2, y1, "tr");
-      const bottomLeft = nearPoint(x, y, x1, y2, "bl");
-      const bottomRight = nearPoint(x, y, x2, y2, "br");
-      const inside = x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
-      return topLeft || topRight || bottomLeft || bottomRight || inside;
-    }
-    case "pencil": {
-      const betweenAnyPoint = element.points.some((point, index) => {
-        const nextPoint = element.points[index + 1];
-        if (!nextPoint) return false;
-        return (
-          onLine(point.x, point.y, nextPoint.x, nextPoint.y, x, y, 5) != null
-        );
-      });
-      return betweenAnyPoint ? "inside" : null;
-    }
-    case "text":
-      return x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
-    default:
-      throw new Error(`Type not recognised: ${type}`);
-  }
-};
-
-const getElementAtPosition = (x, y, elements) =>
-  elements
-    .map((element) => ({
-      ...element,
-      position: positionWithinElement(x, y, element),
-    }))
-    .find((element) => element.position !== null);
-
-const adjustElementCoordinates = (element) => {
-  const { type, x1, y1, x2, y2 } = element;
-  if (type === "rectangle") {
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-    return { x1: minX, y1: minY, x2: maxX, y2: maxY };
-  } else {
-    if (x1 < x2 || (x1 === x2 && y1 < y2)) {
-      return { x1, y1, x2, y2 };
-    } else {
-      return { x1: x2, y1: y2, x2: x1, y2: y1 };
-    }
-  }
-};
-
-const cursorForPosition = (position) => {
-  switch (position) {
-    case "tl":
-    case "br":
-    case "start":
-    case "end":
-      return "nwse-resize";
-    case "tr":
-    case "bl":
-      return "nesw-resize";
-    default:
-      return "move";
-  }
-};
-
-const resizedCoordinates = (clientX, clientY, position, coordinates) => {
-  const { x1, y1, x2, y2 } = coordinates;
-  switch (position) {
-    case "tl":
-    case "start":
-      return { x1: clientX, y1: clientY, x2, y2 };
-    case "tr":
-      return { x1, y1: clientY, x2: clientX, y2 };
-    case "bl":
-      return { x1: clientX, y1, x2, y2: clientY };
-    case "br":
-    case "end":
-      return { x1, y1, x2: clientX, y2: clientY };
-    default:
-      return null;
-  }
-};
-
-// --------- history hook ---------
-const useHistory = (initialState) => {
-  const [index, setIndex] = useState(0);
-  const [history, setHistory] = useState([initialState]);
-
-  const setState = (action, overwrite = false) => {
-    const newState =
-      typeof action === "function" ? action(history[index]) : action;
-    if (overwrite) {
-      const historyCopy = [...history];
-      historyCopy[index] = newState;
-      setHistory(historyCopy);
-    } else {
-      const updatedState = [...history].slice(0, index + 1);
-      setHistory([...updatedState, newState]);
-      setIndex((prev) => prev + 1);
-    }
-  };
-
-  const undo = () => index > 0 && setIndex((prev) => prev - 1);
-  const redo = () => index < history.length - 1 && setIndex((prev) => prev + 1);
-
-  return [history[index], setState, undo, redo];
-};
-
-// --------- freehand helpers ---------
-const getSvgPathFromStroke = (stroke) => {
-  if (!stroke.length) return "";
-
-  const d = stroke.reduce(
-    (acc, [x0, y0], i, arr) => {
-      const [x1, y1] = arr[(i + 1) % arr.length];
-      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-      return acc;
-    },
-    ["M", ...stroke[0], "Q"]
-  );
-
-  d.push("Z");
-  return d.join(" ");
-};
-
-// --------- draw elements with NORMAL canvas API ---------
-const drawElement = (context, element) => {
-  context.lineWidth = 2;
-  context.strokeStyle = "black";
-  context.fillStyle = "black";
-
-  switch (element.type) {
-    case "line": {
-      context.beginPath();
-      context.moveTo(element.x1, element.y1);
-      context.lineTo(element.x2, element.y2);
-      context.stroke();
-      break;
-    }
-    case "rectangle": {
-      const width = element.x2 - element.x1;
-      const height = element.y2 - element.y1;
-      context.beginPath();
-      context.rect(element.x1, element.y1, width, height);
-      context.stroke();
-      break;
-    }
-    case "pencil": {
-      const stroke = getSvgPathFromStroke(getStroke(element.points));
-      const path = new Path2D(stroke);
-      context.fill(path);
-      break;
-    }
-    case "text": {
-      context.textBaseline = "top";
-      context.font = "24px sans-serif";
-      context.fillText(element.text, element.x1, element.y1);
-      break;
-    }
-    default:
-      throw new Error(`Type not recognised: ${element.type}`);
-  }
-};
-
-const adjustmentRequired = (type) => ["line", "rectangle"].includes(type);
-
-// --------- pressed keys hook ---------
-const usePressedKeys = () => {
-  const [pressedKeys, setPressedKeys] = useState(new Set());
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      setPressedKeys((prevKeys) => new Set(prevKeys).add(event.key));
-    };
-
-    const handleKeyUp = (event) => {
-      setPressedKeys((prevKeys) => {
-        const updated = new Set(prevKeys);
-        updated.delete(event.key);
-        return updated;
-      });
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
+    useEffect(() => {
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  return pressedKeys;
-};
+  // camera (right-click pan)
+  const [cam, setCam] = useState({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
+  const lastMouseRef = useRef({ x: 0, y: 0 });
 
-// --------- main component ---------
-const Canvas = () => {
-  const [elements, setElements, undo, redo] = useHistory([]);
-  const [action, setAction] = useState("none"); // none | drawing | moving | resizing | writing | panning
-  const [tool, setTool] = useState("selection");
-  const [selectedElement, setSelectedElement] = useState(null);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
-  const [startPanMousePosition, setStartPanMousePosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const textAreaRef = useRef();
-  const pressedKeys = usePressedKeys();
+  // canvas items
+  const [items, setItems] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
 
-  // RENDER LOOP
-  useLayoutEffect(() => {
-    const canvas = document.getElementById("canvas");
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
+  // drawing state
+  const isDrawingRef = useRef(false);
+  const drawingIdRef = useRef(null);
 
-    context.clearRect(0, 0, canvas.width, canvas.height);
+  // history for undo/redo
+  const [history, setHistory] = useState([[]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
 
-    context.save();
-    context.translate(panOffset.x, panOffset.y);
-    context.scale(scale, scale);
+  // text editing
+  const [editingTextId, setEditingTextId] = useState(null);
+  const [editingTextValue, setEditingTextValue] = useState("");
+  const [textInputPosition, setTextInputPosition] = useState({ x: 0, y: 0 });
 
-    elements.forEach((element) => {
-      if (action === "text" && selectedElement?.id === element.id) return;
-      drawElement(context, element);
+  const stageRef = useRef(null);
+  const textInputRef = useRef(null);
+  const idRef = useRef(1);
+  const nextId = () => String(idRef.current++);
+
+  // Add to history when items change (but not during drawing)
+  const addToHistory = useCallback((newItems) => {
+    if (isDrawingRef.current) return; // Don't add to history while drawing
+
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push([...newItems]);
+      return newHistory.slice(-50); // Keep last 50 states
     });
+    setHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [historyIndex]);
 
-    context.restore();
-  }, [elements, action, selectedElement, panOffset]);
+  // Update items and add to history
+  const updateItems = useCallback((newItems) => {
+    setItems(newItems);
+    addToHistory(newItems);
+  }, [addToHistory]);
 
-  // undo / redo keyboard
+  // Undo function
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setItems([...history[newIndex]]);
+      setSelectedId(null);
+    }
+  }, [history, historyIndex]);
+
+  // Redo function
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setItems([...history[newIndex]]);
+      setSelectedId(null);
+    }
+  }, [history, historyIndex]);
+
+  // Delete selected item
+  const deleteSelected = useCallback(() => {
+    if (selectedId) {
+      const newItems = items.filter(item => item.id !== selectedId);
+      updateItems(newItems);
+      setSelectedId(null);
+    }
+  }, [selectedId, items, updateItems]);
+
+  // Handle keyboard shortcuts
   useEffect(() => {
-    const undoRedoFunction = (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "z") {
-        if (event.shiftKey) redo();
-        else undo();
+    const handleKeyDown = (e) => {
+      // Prevent default if we're not editing text
+      if (editingTextId) return;
+
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey && e.shiftKey && e.key === 'Z') || (e.ctrlKey && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelected();
       }
     };
 
-    document.addEventListener("keydown", undoRedoFunction);
-    return () => document.removeEventListener("keydown", undoRedoFunction);
-  }, [undo, redo]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, deleteSelected, editingTextId]);
 
-  //   // pan with wheel
-  //   useEffect(() => {
-  //     const panFunction = (event) => {
-  //       setPanOffset((prev) => ({
-  //         x: prev.x - event.deltaX,
-  //         y: prev.y - event.deltaY,
-  //       }));
-  //     };
+  // Convert screen pointer -> world coords (accounts for cam)
+  function pointerToWorld(stage) {
+    const p = stage.getPointerPosition();
+    return { x: p.x - cam.x, y: p.y - cam.y };
+  }
 
-  //     document.addEventListener("wheel", panFunction);
-  //     return () => document.removeEventListener("wheel", panFunction);
-  //   }, []);
-
-  // focus textarea when writing starts
-  useEffect(() => {
-    if (action !== "writing") return;
-    if (!selectedElement) return;
-
-    const textArea = textAreaRef.current;
-    if (!textArea) return;
-
-    textArea.focus();
-    textArea.value = selectedElement.text || "";
-  }, [action, selectedElement]);
-
-  const updateElement = (id, x1, y1, x2, y2, type, options = {}) => {
-    const elementsCopy = [...elements];
-
-    switch (type) {
-      case "line":
-      case "rectangle":
-        elementsCopy[id] = createElement(id, x1, y1, x2, y2, type);
-        break;
-
-      case "pencil":
-        elementsCopy[id].points = [
-          ...elementsCopy[id].points,
-          { x: x2, y: y2 },
-        ];
-        break;
-
-      case "text": {
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas?.getContext("2d");
-        if (ctx) {
-          ctx.font = "24px 'Kalam', cursive";
-          const text = options.text ?? elementsCopy[elIndex].text ?? "";
-          const textWidth = ctx.measureText(text).width;
-          const textHeight = 24; // approximate height for font
-
-          elementsCopy[elIndex] = {
-            ...elementsCopy[elIndex],
-            x1,
-            y1,
-            x2: x1 + textWidth,
-            y2: y1 + textHeight,
-            text,
-          };
-        }
-        break;
-      }
-      default:
-        throw new Error(`Type not recognised: ${type}`);
+  function startRightClickPan(e) {
+    if (e.evt.button === 2) {
+      isPanningRef.current = true;
+      lastMouseRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      return true;
     }
+    return false;
+  }
 
-    setElements(elementsCopy, true);
+  // Start editing text
+  const startEditingText = (item) => {
+    const stage = stageRef.current;
+    const stageBox = stage.container().getBoundingClientRect();
+    
+    setEditingTextId(item.id);
+    setEditingTextValue(item.text);
+    setTextInputPosition({
+      x: stageBox.left + item.x + cam.x,
+      y: stageBox.top + item.y + cam.y
+    });
+    
+    // Focus the input after a brief delay
+    setTimeout(() => {
+      if (textInputRef.current) {
+        textInputRef.current.focus();
+        textInputRef.current.select();
+      }
+    }, 10);
   };
 
-  const getMouseCoordinates = (event) => {
-    const clientX = event.clientX - panOffset.x;
-    const clientY = event.clientY - panOffset.y;
-    return { clientX, clientY };
+  // Finish editing text
+  const finishEditingText = () => {
+    if (editingTextId) {
+      const newItems = items.map(item =>
+        item.id === editingTextId
+          ? { ...item, text: editingTextValue || "Empty text" }
+          : item
+      );
+      updateItems(newItems);
+      setEditingTextId(null);
+      setEditingTextValue("");
+    }
   };
 
-  const handleMouseDown = (event) => {
-    if (action === "writing") return;
-
-    const { clientX, clientY } = getMouseCoordinates(event);
-
-    // middle mouse / space + drag = pan
-    if (event.button === 2 || pressedKeys.has(" ") || event.shiftKey) {
-      setAction("panning");
-      setStartPanMousePosition({ x: clientX, y: clientY });
+  function handleMouseDown(e) {
+    // If we're editing text, finish editing
+    if (editingTextId) {
+      finishEditingText();
       return;
     }
 
-    if (tool === "selection") {
-      const element = getElementAtPosition(clientX, clientY, elements);
-      if (element) {
-        if (element.type === "pencil") {
-          const xOffsets = element.points.map((p) => clientX - p.x);
-          const yOffsets = element.points.map((p) => clientY - p.y);
-          setSelectedElement({ ...element, xOffsets, yOffsets });
-        } else {
-          const offsetX = clientX - element.x1;
-          const offsetY = clientY - element.y1;
-          setSelectedElement({ ...element, offsetX, offsetY });
-        }
-        setElements((prev) => prev); // trigger re-render
+    // right click pan
+    if (startRightClickPan(e)) return;
 
-        if (element.position === "inside") setAction("moving");
-        else setAction("resizing");
-      }
-    } else {
-      const id = elements.length;
-      const element = createElement(
-        id,
-        clientX,
-        clientY,
-        clientX,
-        clientY,
-        tool
-      );
-      setElements((prev) => [...prev, element]);
-      setSelectedElement(element);
-      setAction(tool === "text" ? "writing" : "drawing");
-    }
-  };
+    const stage = e.target.getStage();
+    const pos = pointerToWorld(stage);
 
-  const handleMouseMove = (event) => {
-    const { clientX, clientY } = getMouseCoordinates(event);
-
-    if (action === "panning") {
-      const deltaX = clientX - startPanMousePosition.x;
-      const deltaY = clientY - startPanMousePosition.y;
-
-      setPanOffset({
-        x: panOffset.x + deltaX,
-        y: panOffset.y + deltaY,
-      });
+    // click empty space clears selection
+    if (tool === "selection" && e.target === stage) {
+      setSelectedId(null);
       return;
     }
 
-    if (tool === "selection") {
-      const element = getElementAtPosition(clientX, clientY, elements);
-      event.target.style.cursor = element
-        ? cursorForPosition(element.position)
-        : "default";
-    }
-
-    if (action === "drawing") {
-      const index = elements.length - 1;
-      const { x1, y1 } = elements[index];
-      updateElement(index, x1, y1, clientX, clientY, tool);
-    } else if (action === "moving" && selectedElement) {
-      if (selectedElement.type === "pencil") {
-        const newPoints = selectedElement.points.map((_, idx) => ({
-          x: clientX - selectedElement.xOffsets[idx],
-          y: clientY - selectedElement.yOffsets[idx],
-        }));
-        const elementsCopy = [...elements];
-        elementsCopy[selectedElement.id] = {
-          ...elementsCopy[selectedElement.id],
-          points: newPoints,
-        };
-        setElements(elementsCopy, true);
-      } else {
-        const { id, x1, x2, y1, y2, type, offsetX, offsetY } = selectedElement;
-        const width = x2 - x1;
-        const height = y2 - y1;
-        const newX1 = clientX - offsetX;
-        const newY1 = clientY - offsetY;
-        const options =
-          type === "text" ? { text: selectedElement.text || "" } : {};
-        updateElement(
-          id,
-          newX1,
-          newY1,
-          newX1 + width,
-          newY1 + height,
-          type,
-          options
-        );
-      }
-    } else if (action === "resizing" && selectedElement) {
-      const { id, type, position, ...coords } = selectedElement;
-      const { x1, y1, x2, y2 } = resizedCoordinates(
-        clientX,
-        clientY,
-        position,
-        coords
-      );
-      updateElement(id, x1, y1, x2, y2, type);
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (selectedElement) {
-      if (selectedElement.type === "text" && action === "drawing") {
-        setAction("writing");
-        return;
-      }
-
-      const index = elements.findIndex((e) => e.id === selectedElement.id);
-      if (index !== -1) {
-        const element = elements[index];
-        if (
-          (action === "drawing" || action === "resizing") &&
-          adjustmentRequired(element.type)
-        ) {
-          const { x1, y1, x2, y2 } = adjustElementCoordinates(element);
-          updateElement(element.id, x1, y1, x2, y2, element.type);
+    // TEXT: click to place a text item
+    if (tool === "text") {
+      const id = nextId();
+      const newItems = [
+        ...items,
+        { id, type: "text", x: pos.x, y: pos.y, text: "New text" }
+      ];
+      setItems(newItems);
+      setSelectedId(id);
+      
+      // Start editing the new text immediately
+      setTimeout(() => {
+        const newItem = newItems.find(item => item.id === id);
+        if (newItem) {
+          startEditingText(newItem);
         }
-      }
+      }, 10);
+      return;
     }
 
-    if (action === "writing") return;
+    // RECTANGLE: click+drag to size
+    if (tool === "rectangle") {
+      const id = nextId();
+      isDrawingRef.current = true;
+      drawingIdRef.current = id;
 
-    setAction("none");
-    setSelectedElement(null);
-  };
-
-  const handleBlur = (event) => {
-    if (!selectedElement) return;
-
-    const text = event.target.value;
-    const { id, x1, y1, type } = selectedElement;
-
-    // Update text element with real size and content
-    const canvas = document.getElementById("canvas");
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx.font = "24px sans-serif";
-      const width = ctx.measureText(text).width;
-      const height = 24;
-
-      updateElement(id, x1, y1, x1 + width, y1 + height, type, { text });
+      setItems((prev) => [
+        ...prev,
+        { id, type: "rect", x: pos.x, y: pos.y, w: 1, h: 1 },
+      ]);
+      setSelectedId(id);
+      return;
     }
 
-    setAction("none");
-    setSelectedElement(null);
+    // LINE: click+drag to set end point
+    if (tool === "line") {
+      const id = nextId();
+      isDrawingRef.current = true;
+      drawingIdRef.current = id;
+
+      setItems((prev) => [
+        ...prev,
+        { id, type: "line", points: [pos.x, pos.y, pos.x, pos.y] },
+      ]);
+      setSelectedId(id);
+      return;
+    }
+
+    // PENCIL: freehand points
+    if (tool === "pencil") {
+      const id = nextId();
+      isDrawingRef.current = true;
+      drawingIdRef.current = id;
+
+      setItems((prev) => [
+        ...prev,
+        { id, type: "pencil", points: [pos.x, pos.y] },
+      ]);
+      setSelectedId(id);
+      return;
+    }
+  }
+
+  function handleMouseMove(e) {
+    // pan
+    if (isPanningRef.current) {
+      const now = { x: e.evt.clientX, y: e.evt.clientY };
+      const dx = now.x - lastMouseRef.current.x;
+      const dy = now.y - lastMouseRef.current.y;
+      lastMouseRef.current = now;
+      setCam((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+      return;
+    }
+
+    // drawing updates
+    if (!isDrawingRef.current) return;
+
+    const stage = e.target.getStage();
+    const pos = pointerToWorld(stage);
+    const drawId = drawingIdRef.current;
+
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== drawId) return it;
+
+        if (it.type === "rect") {
+          return { ...it, w: pos.x - it.x, h: pos.y - it.y };
+        }
+
+        if (it.type === "line") {
+          const [x1, y1] = it.points;
+          return { ...it, points: [x1, y1, pos.x, pos.y] };
+        }
+
+        if (it.type === "pencil") {
+          return { ...it, points: [...it.points, pos.x, pos.y] };
+        }
+
+        return it;
+      })
+    );
+  }
+
+  function handleMouseUp() {
+    if (isDrawingRef.current) {
+      // Add the completed drawing to history
+      setTimeout(() => addToHistory(items), 0);
+    }
+    
+    isPanningRef.current = false;
+    isDrawingRef.current = false;
+    drawingIdRef.current = null;
+  }
+
+  // Handle item dragging
+  const handleItemDragEnd = (id, newAttrs) => {
+    const newItems = items.map(item =>
+      item.id === id ? { ...item, ...newAttrs } : item
+    );
+    updateItems(newItems);
   };
 
-  useEffect(() => {
-    const handleWheel = (event) => {
-      event.preventDefault();
+  // selection clicking on items
+  function selectItem(id) {
+    if (tool !== "selection") return; // only select when selection tool is active
+    setSelectedId(id);
+  }
 
-      const zoomIntensity = 0.0005; // speed of zoom
-      const delta = event.deltaY;
-
-      // get mouse position relative to canvas
-      const mouseX = event.clientX;
-      const mouseY = event.clientY;
-
-      // compute zoom
-      const newScale = scale - delta * zoomIntensity;
-
-      // clamp scale (optional)
-      const clampedScale = Math.min(Math.max(newScale, 0.2), 4);
-
-      // adjust pan so zoom stays centered under mouse
-      const scaleFactor = clampedScale / scale;
-
-      setPanOffset((prev) => ({
-        x: mouseX - (mouseX - prev.x) * scaleFactor,
-        y: mouseY - (mouseY - prev.y) * scaleFactor,
-      }));
-
-      setScale(clampedScale);
-    };
-
-    window.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      window.removeEventListener("wheel", handleWheel);
-    };
-  }, [scale]);
+  // Double click to edit text
+  const handleTextDoubleClick = (item) => {
+    if (tool === "selection") {
+      startEditingText(item);
+    }
+  };
 
   return (
-    <div>
+     <div
+      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        margin: 0,
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      {/* Your toolbox */}
       <Tools tool={tool} setTool={setTool} />
-      <SizeBadge scale={scale} setScale={setScale} />
 
-      {/* Undo / redo */}
-      <div style={{ position: "fixed", zIndex: 2, bottom: 0, padding: 10 }}>
-        <button onClick={undo}>Undo</button>
-        <button onClick={redo}>Redo</button>
+      {/* Status bar showing keyboard shortcuts */}
+      <div style={{
+        position: "absolute",
+        top: 10,
+        right: 10,
+        background: "rgba(0,0,0,0.7)",
+        color: "white",
+        padding: "8px",
+        borderRadius: "4px",
+        fontSize: "12px",
+        zIndex: 1000
+      }}>
+        <div>Ctrl+Z: Undo | Ctrl+Shift+Z: Redo</div>
+        <div>Delete/Backspace: Delete selected</div>
+        <div>Double-click text to edit</div>
       </div>
 
-      {/* Text Editor Overlay */}
-       {action === "writing" && selectedElement ? (
-        <textarea
-          ref={textAreaRef}
-          onBlur={handleBlur}
-          className="fixed m-0 p-0 border-0 outline-none resize-none overflow-hidden bg-transparent whitespace-pre text-slate-800"
+      {/* Text editing input */}
+      {editingTextId && (
+        <input
+          ref={textInputRef}
+          type="text"
+          value={editingTextValue}
+          onChange={(e) => setEditingTextValue(e.target.value)}
+          onBlur={finishEditingText}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              finishEditingText();
+            } else if (e.key === 'Escape') {
+              setEditingTextId(null);
+              setEditingTextValue("");
+            }
+          }}
           style={{
-            top: (selectedElement.y1 * scale) + panOffset.y,
-            left: (selectedElement.x1 * scale) + panOffset.x,
-            font: `normal ${24 * scale}px 'helvetica', cursive`,
-            color: "#1e293b",
-            lineHeight: 1,
-            // Calculate width based on text or default
-            width: (selectedElement.x2 - selectedElement.x1) * scale + 50 + "px",
-            height: (selectedElement.y2 - selectedElement.y1) * scale + 50 + "px",
-            zIndex: 100,
+            position: "fixed",
+            left: textInputPosition.x,
+            top: textInputPosition.y,
+            fontSize: "24px",
+            border: "2px solid dodgerblue",
+            borderRadius: "4px",
+            padding: "2px 6px",
+            zIndex: 1000,
+            background: "white"
           }}
         />
-      ) : null}
+      )}
 
-      <canvas
-        id="canvas"
-        width={window.innerWidth}
-        height={window.innerHeight}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        style={{
-          position: "absolute",
-          zIndex: 1,
-        }}
-      ></canvas>
-
-      {/* Dot Grid Overlay */}
+      {/* Canvas */}
       <div
-        className="dot-grid"
         style={{
-          backgroundImage:
-            "radial-gradient(circle, #a1a1a1ff 1px, transparent 1px)",
-          // scale the grid spacing with the canvas scale so it stays consistent
-          backgroundSize: `${20 * scale}px ${20 * scale}px`,
-          position: "absolute",
-          top: -5000,
-          left: -5000,
-          width: 10000,
-          height: 10000,
-          pointerEvents: "none",
-          zIndex: 0,
-          transformOrigin: "0 0",
-          // Always move & scale the grid to match the canvas pan/zoom
-          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${scale})`,
+          width: "100vw",
+          height: "100vh",
+          border: "1px solid #ccc",
+          overflow: "hidden",
+          userSelect: "none",
         }}
-      ></div>
+      >
+        <Stage
+          ref={stageRef}
+          width={size.w}
+          height={size.h}
+          x={cam.x}
+          y={cam.y}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          <Layer>
+            {items.map((it) => {
+              if (it.type === "rect") {
+                return (
+                  <Rect
+                    key={it.id}
+                    x={it.x}
+                    y={it.y}
+                    width={it.w}
+                    height={it.h}
+                    fill="transparent"
+                    stroke={it.id === selectedId ? "dodgerblue" : "black"}
+                    strokeWidth={it.id === selectedId ? 2 : 1}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onDragEnd={(e) => handleItemDragEnd(it.id, {
+                      x: e.target.x(),
+                      y: e.target.y()
+                    })}
+                  />
+                );
+              }
+
+              if (it.type === "line") {
+                return (
+                  <Line
+                    key={it.id}
+                    points={it.points}
+                    stroke="black"
+                    strokeWidth={3}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onDragEnd={(e) => {
+                      const [x1, y1, x2, y2] = it.points;
+                      const dx = e.target.x();
+                      const dy = e.target.y();
+                      handleItemDragEnd(it.id, {
+                        points: [x1 + dx, y1 + dy, x2 + dx, y2 + dy]
+                      });
+                      e.target.x(0);
+                      e.target.y(0);
+                    }}
+                  />
+                );
+              }
+
+              if (it.type === "pencil") {
+                return (
+                  <Line
+                    key={it.id}
+                    points={it.points}
+                    stroke="black"
+                    strokeWidth={3}
+                    lineCap="round"
+                    lineJoin="round"
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onDragEnd={(e) => {
+                      const dx = e.target.x();
+                      const dy = e.target.y();
+                      const newPoints = [];
+                      for (let i = 0; i < it.points.length; i += 2) {
+                        newPoints.push(it.points[i] + dx, it.points[i + 1] + dy);
+                      }
+                      handleItemDragEnd(it.id, { points: newPoints });
+                      e.target.x(0);
+                      e.target.y(0);
+                    }}
+                  />
+                );
+              }
+
+              if (it.type === "text") {
+                return (
+                  <Text
+                    key={it.id}
+                    x={it.x}
+                    y={it.y}
+                    text={it.text}
+                    fontSize={24}
+                    fill="black"
+                    stroke={it.id === selectedId ? "dodgerblue" : undefined}
+                    strokeWidth={it.id === selectedId ? 1 : 0}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onDblClick={() => handleTextDoubleClick(it)}
+                    onDragEnd={(e) => handleItemDragEnd(it.id, {
+                      x: e.target.x(),
+                      y: e.target.y()
+                    })}
+                  />
+                );
+              }
+
+              return null;
+            })}
+          </Layer>
+        </Stage>
+      </div>
     </div>
   );
-};
-
-export default Canvas;
+}
