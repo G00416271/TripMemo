@@ -1,6 +1,40 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Stage, Layer, Rect, Line, Text } from "react-konva";
+import {
+  Stage,
+  Layer,
+  Rect,
+  Line,
+  Text,
+  Image as KonvaImage,
+} from "react-konva";
+import useImage from "use-image";
 import Tools from "./toolbox/toolbar.jsx";
+
+function CanvasImage({ it, isSelected, tool, onSelect, onDragEnd }) {
+  const [img] = useImage(it.src);
+
+  if (!img) return null;
+
+  // keep aspect ratio (use it.w as the “target width”)
+  const aspect = img.width / img.height;
+  const drawW = it.w;
+  const drawH = it.h ?? Math.round(drawW / aspect);
+
+  return (
+    <KonvaImage
+      image={img}
+      x={it.x}
+      y={it.y}
+      width={drawW}
+      height={drawH}
+      stroke={isSelected ? "dodgerblue" : undefined}
+      strokeWidth={isSelected ? 2 : 0}
+      draggable={tool === "selection"}
+      onMouseDown={onSelect}
+      onDragEnd={(e) => onDragEnd(it.id, { x: e.target.x(), y: e.target.y() })}
+    />
+  );
+}
 
 export default function CanvasPage() {
   const viewW = "100vw";
@@ -8,10 +42,14 @@ export default function CanvasPage() {
 
   // which tool is selected from your toolbox
   const [tool, setTool] = useState("selection");
-  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [size, setSize] = useState({
+    w: window.innerWidth,
+    h: window.innerHeight,
+  });
 
-    useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () =>
+      setSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -44,22 +82,28 @@ export default function CanvasPage() {
   const nextId = () => String(idRef.current++);
 
   // Add to history when items change (but not during drawing)
-  const addToHistory = useCallback((newItems) => {
-    if (isDrawingRef.current) return; // Don't add to history while drawing
+  const addToHistory = useCallback(
+    (newItems) => {
+      if (isDrawingRef.current) return; // Don't add to history while drawing
 
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...newItems]);
-      return newHistory.slice(-50); // Keep last 50 states
-    });
-    setHistoryIndex(prev => Math.min(prev + 1, 49));
-  }, [historyIndex]);
+      setHistory((prev) => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push([...newItems]);
+        return newHistory.slice(-50); // Keep last 50 states
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 49));
+    },
+    [historyIndex],
+  );
 
   // Update items and add to history
-  const updateItems = useCallback((newItems) => {
-    setItems(newItems);
-    addToHistory(newItems);
-  }, [addToHistory]);
+  const updateItems = useCallback(
+    (newItems) => {
+      setItems(newItems);
+      addToHistory(newItems);
+    },
+    [addToHistory],
+  );
 
   // Undo function
   const undo = useCallback(() => {
@@ -84,7 +128,7 @@ export default function CanvasPage() {
   // Delete selected item
   const deleteSelected = useCallback(() => {
     if (selectedId) {
-      const newItems = items.filter(item => item.id !== selectedId);
+      const newItems = items.filter((item) => item.id !== selectedId);
       updateItems(newItems);
       setSelectedId(null);
     }
@@ -96,20 +140,23 @@ export default function CanvasPage() {
       // Prevent default if we're not editing text
       if (editingTextId) return;
 
-      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+      if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
-      } else if ((e.ctrlKey && e.shiftKey && e.key === 'Z') || (e.ctrlKey && e.key === 'y')) {
+      } else if (
+        (e.ctrlKey && e.shiftKey && e.key === "Z") ||
+        (e.ctrlKey && e.key === "y")
+      ) {
         e.preventDefault();
         redo();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         deleteSelected();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo, deleteSelected, editingTextId]);
 
   // Convert screen pointer -> world coords (accounts for cam)
@@ -131,14 +178,14 @@ export default function CanvasPage() {
   const startEditingText = (item) => {
     const stage = stageRef.current;
     const stageBox = stage.container().getBoundingClientRect();
-    
+
     setEditingTextId(item.id);
     setEditingTextValue(item.text);
     setTextInputPosition({
       x: stageBox.left + item.x + cam.x,
-      y: stageBox.top + item.y + cam.y
+      y: stageBox.top + item.y + cam.y,
     });
-    
+
     // Focus the input after a brief delay
     setTimeout(() => {
       if (textInputRef.current) {
@@ -151,10 +198,10 @@ export default function CanvasPage() {
   // Finish editing text
   const finishEditingText = () => {
     if (editingTextId) {
-      const newItems = items.map(item =>
+      const newItems = items.map((item) =>
         item.id === editingTextId
           ? { ...item, text: editingTextValue || "Empty text" }
-          : item
+          : item,
       );
       updateItems(newItems);
       setEditingTextId(null);
@@ -186,14 +233,14 @@ export default function CanvasPage() {
       const id = nextId();
       const newItems = [
         ...items,
-        { id, type: "text", x: pos.x, y: pos.y, text: "New text" }
+        { id, type: "text", x: pos.x, y: pos.y, text: "New text" },
       ];
       setItems(newItems);
       setSelectedId(id);
-      
+
       // Start editing the new text immediately
       setTimeout(() => {
-        const newItem = newItems.find(item => item.id === id);
+        const newItem = newItems.find((item) => item.id === id);
         if (newItem) {
           startEditingText(newItem);
         }
@@ -280,7 +327,7 @@ export default function CanvasPage() {
         }
 
         return it;
-      })
+      }),
     );
   }
 
@@ -289,7 +336,7 @@ export default function CanvasPage() {
       // Add the completed drawing to history
       setTimeout(() => addToHistory(items), 0);
     }
-    
+
     isPanningRef.current = false;
     isDrawingRef.current = false;
     drawingIdRef.current = null;
@@ -297,8 +344,8 @@ export default function CanvasPage() {
 
   // Handle item dragging
   const handleItemDragEnd = (id, newAttrs) => {
-    const newItems = items.map(item =>
-      item.id === id ? { ...item, ...newAttrs } : item
+    const newItems = items.map((item) =>
+      item.id === id ? { ...item, ...newAttrs } : item,
     );
     updateItems(newItems);
   };
@@ -316,8 +363,40 @@ export default function CanvasPage() {
     }
   };
 
+  const addImageFromFile = useCallback(
+    (file) => {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const id = nextId();
+
+        // place near top-left of current view
+        const x = -cam.x + 50;
+        const y = -cam.y + 50;
+
+        const newItem = {
+          id,
+          type: "image",
+          x: 600,
+          y: 100,
+          w: 200,
+          h: null,
+          src: String(reader.result), // base64 data URL
+        };
+
+        const newItems = [...items, newItem];
+        updateItems(newItems);
+        setSelectedId(id);
+      };
+
+      reader.readAsDataURL(file);
+    },
+    [items, updateItems, cam],
+  );
+
   return (
-     <div
+    <div
       onContextMenu={(e) => e.preventDefault()}
       style={{
         width: "100vw",
@@ -331,20 +410,34 @@ export default function CanvasPage() {
       <Tools tool={tool} setTool={setTool} />
 
       {/* Status bar showing keyboard shortcuts */}
-      <div style={{
-        position: "absolute",
-        top: 10,
-        right: 10,
-        background: "rgba(0,0,0,0.7)",
-        color: "white",
-        padding: "8px",
-        borderRadius: "4px",
-        fontSize: "12px",
-        zIndex: 1000
-      }}>
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          right: 10,
+          background: "rgba(0,0,0,0.7)",
+          color: "white",
+          padding: "8px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          zIndex: 1000,
+        }}
+      >
         <div>Ctrl+Z: Undo | Ctrl+Shift+Z: Redo</div>
         <div>Delete/Backspace: Delete selected</div>
         <div>Double-click text to edit</div>
+      </div>
+
+      {/* Image upload */}
+      <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1000 }}>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            addImageFromFile(e.target.files?.[0]);
+            e.target.value = ""; // clears file so same image can be selected again
+          }}
+        />
       </div>
 
       {/* Text editing input */}
@@ -356,9 +449,9 @@ export default function CanvasPage() {
           onChange={(e) => setEditingTextValue(e.target.value)}
           onBlur={finishEditingText}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               finishEditingText();
-            } else if (e.key === 'Escape') {
+            } else if (e.key === "Escape") {
               setEditingTextId(null);
               setEditingTextValue("");
             }
@@ -372,7 +465,7 @@ export default function CanvasPage() {
             borderRadius: "4px",
             padding: "2px 6px",
             zIndex: 1000,
-            background: "white"
+            background: "white",
           }}
         />
       )}
@@ -382,7 +475,7 @@ export default function CanvasPage() {
         style={{
           width: "100vw",
           height: "100vh",
-          border: "1px solid #ccc",
+          border: "1px solid #cccccc86",
           overflow: "hidden",
           userSelect: "none",
         }}
@@ -413,10 +506,12 @@ export default function CanvasPage() {
                     strokeWidth={it.id === selectedId ? 2 : 1}
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
-                    onDragEnd={(e) => handleItemDragEnd(it.id, {
-                      x: e.target.x(),
-                      y: e.target.y()
-                    })}
+                    onDragEnd={(e) =>
+                      handleItemDragEnd(it.id, {
+                        x: e.target.x(),
+                        y: e.target.y(),
+                      })
+                    }
                   />
                 );
               }
@@ -435,7 +530,7 @@ export default function CanvasPage() {
                       const dx = e.target.x();
                       const dy = e.target.y();
                       handleItemDragEnd(it.id, {
-                        points: [x1 + dx, y1 + dy, x2 + dx, y2 + dy]
+                        points: [x1 + dx, y1 + dy, x2 + dx, y2 + dy],
                       });
                       e.target.x(0);
                       e.target.y(0);
@@ -460,7 +555,10 @@ export default function CanvasPage() {
                       const dy = e.target.y();
                       const newPoints = [];
                       for (let i = 0; i < it.points.length; i += 2) {
-                        newPoints.push(it.points[i] + dx, it.points[i + 1] + dy);
+                        newPoints.push(
+                          it.points[i] + dx,
+                          it.points[i + 1] + dy,
+                        );
                       }
                       handleItemDragEnd(it.id, { points: newPoints });
                       e.target.x(0);
@@ -484,10 +582,24 @@ export default function CanvasPage() {
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
                     onDblClick={() => handleTextDoubleClick(it)}
-                    onDragEnd={(e) => handleItemDragEnd(it.id, {
-                      x: e.target.x(),
-                      y: e.target.y()
-                    })}
+                    onDragEnd={(e) =>
+                      handleItemDragEnd(it.id, {
+                        x: e.target.x(),
+                        y: e.target.y(),
+                      })
+                    }
+                  />
+                );
+              }
+              if (it.type === "image") {
+                return (
+                  <CanvasImage
+                    key={it.id}
+                    it={it}
+                    isSelected={it.id === selectedId}
+                    tool={tool}
+                    onSelect={() => selectItem(it.id)}
+                    onDragEnd={handleItemDragEnd}
                   />
                 );
               }
