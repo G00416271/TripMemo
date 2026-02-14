@@ -1,10 +1,16 @@
 import { useState } from "react";
 import ExifReader from "exifreader";
+import { useAuth } from "./Auth.jsx";
 
-export default function UploadFiles({ onUploadComplete }) {
+export default function UploadFiles({
+  onUploadComplete,
+  memoryId,
+  memoryName,
+}) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
   const [metadata, setMetadata] = useState(null);
+  const { user, isLoggedIn, logout } = useAuth();
 
   async function extractMetadataFromFile(file) {
     // read the raw bytes from the uploaded file (client-side)
@@ -14,10 +20,9 @@ export default function UploadFiles({ onUploadComplete }) {
     const tags = ExifReader.load(buffer, { expanded: true });
 
     return {
-    // GPS (best from expanded gps group)
-    gpsLatitude: tags.gps?.Latitude ?? null,
-    gpsLongitude: tags.gps?.Longitude ?? null,
-
+      // GPS (best from expanded gps group)
+      gpsLatitude: tags.gps?.Latitude ?? null,
+      gpsLongitude: tags.gps?.Longitude ?? null,
 
       gpsLatitude: tags?.gps?.Latitude?.description ?? null,
       gpsLongitude: tags?.gps?.Longitude?.description ?? null,
@@ -28,15 +33,15 @@ export default function UploadFiles({ onUploadComplete }) {
     };
   }
 
-
-
-//try uploading to database and seeing where w
-
-
+  //try uploading to database and seeing where w
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!file) return;
+    if (!memoryId) {
+      setStatus("No memory selected.");
+      return;
+    }
 
     setStatus("Reading EXIF...");
 
@@ -53,7 +58,8 @@ export default function UploadFiles({ onUploadComplete }) {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("user", "Tim");
+    formData.append("user", user.username);
+    formData.append("memory_id", memoryId);
     formData.append("metadata", JSON.stringify(meta)); // send EXIF to backend too
 
     setStatus("Uploading...");
@@ -82,7 +88,12 @@ export default function UploadFiles({ onUploadComplete }) {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white p-6">
       <div className="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">File Upload</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          File Upload{" "}
+          <div className="text-2xl font-bold mb-6 text-center">
+            {memoryId + " " + memoryName}
+          </div>
+        </h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
@@ -110,8 +121,12 @@ export default function UploadFiles({ onUploadComplete }) {
 
         {file && (
           <div className="mt-4 text-sm text-gray-400">
-            <p><strong>Name:</strong> {file.name}</p>
-            <p><strong>Size:</strong> {file.size} bytes</p>
+            <p>
+              <strong>Name:</strong> {file.name}
+            </p>
+            <p>
+              <strong>Size:</strong> {file.size} bytes
+            </p>
           </div>
         )}
 

@@ -11,7 +11,8 @@ import "./Create.css"
 document.oncontextmenu = () => false;
 
 
-export default function Create({ serverData, setActiveTab }) {
+export default function Create({ serverData, setActiveTab, memoryId, memoryName }) {
+
   const [page, setPage] = useState("main");
 
 
@@ -28,7 +29,7 @@ export default function Create({ serverData, setActiveTab }) {
 
           {/* main screen */}
           <div id="canvas-wrapper">
-            <Canvas />
+            <Canvas memoryId={memoryId} memoryName={memoryName}/>
           </div>
 
 

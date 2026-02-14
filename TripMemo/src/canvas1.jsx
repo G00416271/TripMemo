@@ -6,37 +6,58 @@ import {
   Line,
   Text,
   Image as KonvaImage,
+  Transformer,
 } from "react-konva";
 import useImage from "use-image";
 import Tools from "./toolbox/toolbar.jsx";
 
-function CanvasImage({ it, isSelected, tool, onSelect, onDragEnd }) {
+function CanvasImage({
+  it,
+  isSelected,
+  tool,
+  onSelect,
+  onDragEnd,
+  nodeRef,
+  onResize,
+}) {
   const [img] = useImage(it.src);
-
   if (!img) return null;
-
-  // keep aspect ratio (use it.w as the “target width”)
-  const aspect = img.width / img.height;
-  const drawW = it.w;
-  const drawH = it.h ?? Math.round(drawW / aspect);
 
   return (
     <KonvaImage
+      ref={nodeRef}
       image={img}
       x={it.x}
       y={it.y}
-      width={drawW}
-      height={drawH}
+      width={it.w}
+      height={it.h}
       stroke={isSelected ? "dodgerblue" : undefined}
       strokeWidth={isSelected ? 2 : 0}
       draggable={tool === "selection"}
       onMouseDown={onSelect}
       onDragEnd={(e) => onDragEnd(it.id, { x: e.target.x(), y: e.target.y() })}
+      onTransformEnd={(e) => {
+        const node = e.target;
+        const scaleX = node.scaleX();
+        const scaleY = node.scaleY();
+        node.scaleX(1);
+        node.scaleY(1);
+
+        onResize(it.id, {
+          x: node.x(),
+          y: node.y(),
+          w: Math.max(5, node.width() * scaleX),
+          h: Math.max(5, node.height() * scaleY),
+        });
+      }}
     />
   );
 }
 
-export default function CanvasPage() {
+export default function CanvasPage({ memoryId, memoryName }) {
+  const trRef = useRef(null);
+  const nodeRefs = useRef({}); // stores refs for each item by id
+
   const viewW = "100vw";
   const viewH = "100vh";
 
@@ -95,6 +116,21 @@ export default function CanvasPage() {
     },
     [historyIndex],
   );
+
+  useEffect(() => {
+    const tr = trRef.current;
+    if (!tr) return;
+
+    const node = selectedId ? nodeRefs.current[selectedId] : null;
+
+    if (node) {
+      tr.nodes([node]);
+      tr.getLayer()?.batchDraw();
+    } else {
+      tr.nodes([]);
+      tr.getLayer()?.batchDraw();
+    }
+  }, [selectedId, items]);
 
   // Update items and add to history
   const updateItems = useCallback(
@@ -233,7 +269,14 @@ export default function CanvasPage() {
       const id = nextId();
       const newItems = [
         ...items,
-        { id, type: "text", x: pos.x, y: pos.y, text: "New text" },
+        {
+          id,
+          type: "text",
+          x: pos.x,
+          y: pos.y,
+          text: "New text",
+          fontSize: 24,
+        },
       ];
       setItems(newItems);
       setSelectedId(id);
@@ -332,12 +375,21 @@ export default function CanvasPage() {
   }
 
   function handleMouseUp() {
+    isPanningRef.current = false;
+
     if (isDrawingRef.current) {
-      // Add the completed drawing to history
-      setTimeout(() => addToHistory(items), 0);
+      isDrawingRef.current = false;
+      drawingIdRef.current = null;
+
+      // push the latest items into history
+      setItems((prev) => {
+        addToHistory(prev);
+        return prev;
+      });
+
+      return;
     }
 
-    isPanningRef.current = false;
     isDrawingRef.current = false;
     drawingIdRef.current = null;
   }
@@ -362,38 +414,87 @@ export default function CanvasPage() {
       startEditingText(item);
     }
   };
-
   const addImageFromFile = useCallback(
     (file) => {
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = () => {
-        const id = nextId();
+        const src = String(reader.result);
 
-        // place near top-left of current view
-        const x = -cam.x + 50;
-        const y = -cam.y + 50;
+        const img = new window.Image();
+        img.onload = () => {
+          const id = nextId();
+          const w = 200;
+          const h = Math.round((img.height / img.width) * w);
 
-        const newItem = {
-          id,
-          type: "image",
-          x: 600,
-          y: 100,
-          w: 200,
-          h: null,
-          src: String(reader.result), // base64 data URL
+          const newItem = {
+            id,
+            type: "image",
+            x: -cam.x + 50,
+            y: -cam.y + 50,
+            w,
+            h,
+            src,
+          };
+
+          const newItems = [...items, newItem];
+          updateItems(newItems);
+          setSelectedId(id);
         };
-
-        const newItems = [...items, newItem];
-        updateItems(newItems);
-        setSelectedId(id);
+        img.src = src;
       };
 
       reader.readAsDataURL(file);
     },
     [items, updateItems, cam],
   );
+
+  async function saveCanvas() {
+    try {
+      const res = await fetch("http://localhost:5000/api/canvas/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memoryId, // ✅ add this
+          items,
+          cam,
+          updatedAt: Date.now(),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Save failed");
+      const data = await res.json();
+      console.log("Saved:", data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadCanvas() {
+    try {
+      if (!memoryId) return;
+
+      const res = await fetch(
+        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
+      );
+      if (!res.ok) throw new Error("Load failed");
+      const data = await res.json();
+      setItems(data.items ?? []);
+      setCam(data.cam ?? { x: 0, y: 0 });
+      setSelectedId(null);
+
+      setHistory([data.items ?? []]);
+      setHistoryIndex(0);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  useEffect(() => {
+    loadCanvas();
+    console.log("memoryid: "+ memoryId + "memory name: " + memoryName)
+  }, [memoryId]);
 
   return (
     <div
@@ -408,6 +509,18 @@ export default function CanvasPage() {
     >
       {/* Your toolbox */}
       <Tools tool={tool} setTool={setTool} />
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          left: 180,
+          zIndex: 1000,
+          background: "white",
+          padding: 6,
+        }}
+      >
+        {memoryName} (#{memoryId})
+      </div>
 
       {/* Status bar showing keyboard shortcuts */}
       <div
@@ -439,6 +552,13 @@ export default function CanvasPage() {
           }}
         />
       </div>
+
+      <button
+        onClick={saveCanvas}
+        style={{ position: "absolute", bottom: 10, left: 10, zIndex: 1000 }}
+      >
+        Save
+      </button>
 
       {/* Text editing input */}
       {editingTextId && (
@@ -492,10 +612,20 @@ export default function CanvasPage() {
           onMouseLeave={handleMouseUp}
         >
           <Layer>
+            {tool === "selection" && (
+              <Transformer
+                ref={trRef}
+                keepRatio={
+                  items.find((i) => i.id === selectedId)?.type === "image"
+                }
+              />
+            )}
+
             {items.map((it) => {
               if (it.type === "rect") {
                 return (
                   <Rect
+                    ref={(node) => (nodeRefs.current[it.id] = node)}
                     key={it.id}
                     x={it.x}
                     y={it.y}
@@ -512,6 +642,21 @@ export default function CanvasPage() {
                         y: e.target.y(),
                       })
                     }
+                    onTransformEnd={(e) => {
+                      const node = e.target;
+                      const scaleX = node.scaleX();
+                      const scaleY = node.scaleY();
+
+                      node.scaleX(1);
+                      node.scaleY(1);
+
+                      handleItemDragEnd(it.id, {
+                        x: node.x(),
+                        y: node.y(),
+                        w: Math.max(5, node.width() * scaleX),
+                        h: Math.max(5, node.height() * scaleY),
+                      });
+                    }}
                   />
                 );
               }
@@ -571,11 +716,12 @@ export default function CanvasPage() {
               if (it.type === "text") {
                 return (
                   <Text
+                    ref={(node) => (nodeRefs.current[it.id] = node)}
                     key={it.id}
                     x={it.x}
                     y={it.y}
                     text={it.text}
-                    fontSize={24}
+                    fontSize={it.fontSize ?? 24}
                     fill="black"
                     stroke={it.id === selectedId ? "dodgerblue" : undefined}
                     strokeWidth={it.id === selectedId ? 1 : 0}
@@ -588,6 +734,19 @@ export default function CanvasPage() {
                         y: e.target.y(),
                       })
                     }
+                    onTransformEnd={(e) => {
+                      const node = e.target;
+                      const scaleY = node.scaleY();
+
+                      node.scaleX(1);
+                      node.scaleY(1);
+
+                      handleItemDragEnd(it.id, {
+                        x: node.x(),
+                        y: node.y(),
+                        fontSize: Math.max(8, (it.fontSize ?? 24) * scaleY),
+                      });
+                    }}
                   />
                 );
               }
@@ -600,6 +759,8 @@ export default function CanvasPage() {
                     tool={tool}
                     onSelect={() => selectItem(it.id)}
                     onDragEnd={handleItemDragEnd}
+                    onResize={handleItemDragEnd}
+                    nodeRef={(node) => (nodeRefs.current[it.id] = node)}
                   />
                 );
               }

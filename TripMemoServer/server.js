@@ -5,6 +5,7 @@ import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import cookieParser from "cookie-parser";
+import fs from "fs";
 
 
 import processImages from './DataScraper.js';
@@ -18,6 +19,10 @@ import requireAuth from "./auth.js"
 import db from "./db.js"
 import { clipAnalyse } from './clipAnalyse.js';  
 import stage from './imageStaging.js';
+import canvasDbRoutes from "./canvasDbRoutes.js";
+
+
+
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -49,8 +54,11 @@ app.use(cookieParser());
 
 
 // Parse requests
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: true,  limit: "500mb" }));
 app.use(bodyParser.json());
+app.use("/api/canvas", canvasDbRoutes);
+
+
 
 // Serve static icons
 app.use('/icons', express.static(path.join(__dirname, 'Icons')));
@@ -276,7 +284,37 @@ app.post("/logout", (req, res) => {
   res.sendStatus(200);
 });
 
+// canvases folder
+const CANVAS_DIR = path.join(__dirname, "canvases");
+if (!fs.existsSync(CANVAS_DIR)) fs.mkdirSync(CANVAS_DIR, { recursive: true });
 
+// POST /api/canvas/save
+app.post("/api/canvas/save", (req, res) => {
+  const { memoryId, items, cam } = req.body;
+
+  if (!memoryId) return res.status(400).json({ error: "memoryId required" });
+
+  const filePath = path.join(CANVAS_DIR, `${memoryId}.json`);
+  fs.writeFileSync(filePath, JSON.stringify({ items, cam }, null, 2), "utf8");
+
+  res.json({ ok: true, memoryId });
+});
+
+// GET /api/canvas/load?memoryId=123
+app.get("/api/canvas/load", (req, res) => {
+  const { memoryId } = req.query;
+
+  if (!memoryId) return res.status(400).json({ error: "memoryId required" });
+
+  const filePath = path.join(CANVAS_DIR, `${memoryId}.json`);
+
+  if (!fs.existsSync(filePath)) {
+    return res.json({ items: [], cam: { x: 0, y: 0 } });
+  }
+
+  const raw = fs.readFileSync(filePath, "utf8");
+  res.json(JSON.parse(raw));
+});
 
 //connection tests
 app.get("/ping", (req, res) => {

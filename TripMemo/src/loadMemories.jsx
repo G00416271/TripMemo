@@ -2,10 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "./Auth.jsx";
 
 
-export default function Memories({setActiveTab }) {
+export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName }) {
+
+
   const [memories, setMemories] = useState([]);
   const [showForm, setShowForm] = useState(false);
+
   const [memoryName, setMemoryName] = useState("");
+  //const [selectedMemoryName, setSelectedMemoryName] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -133,23 +138,13 @@ useEffect(() => {
     window.history.back();
   };
 
-  const handleCardDoubleClick = (memoryId) => {
-    // Navigate to memory detail page with id and user
-    
+const handleCardDoubleClick = (memoryId, memoryTitle) => {
+  setSelectedMemoryId(memoryId);
+  setSelectedMemoryName(memoryTitle);
+  setActiveTab("upload");
+};
 
 
-
-
-
-
-    setActiveTab("upload");
-
-
-
-
-
-
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
@@ -302,7 +297,7 @@ useEffect(() => {
           {memories.map((memory) => (
             <div
               key={memory.memory_id}
-              onDoubleClick={() => handleCardDoubleClick(memory.memory_id)}
+              onDoubleClick={() => handleCardDoubleClick(memory.memory_id, memory.title)}
               className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer relative"
             >
               {/* Three dots menu button */}

@@ -7,12 +7,10 @@ import "./onboarding.css";
 import { createContext } from "react";
 import "./fonts.css";
 
-
 // import OnboardingLogo from "./onboarding/OnboardingLogo";
 // import Onboarding1 from "./onboarding/Onboarding1";
 // import Onboarding2 from "./onboarding/Onboarding2";
 // import Onboarding3 from "./onboarding/Onboarding3";
-
 
 // updated: these lines allow the login and signup pages to be imported
 import LoginPage, { SignupPage } from "./LoginPage";
@@ -83,6 +81,9 @@ const PLACEHOLDER_AVATAR =
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const [selectedMemoryId, setSelectedMemoryId] = useState(null);
+  const [SelectedMemoryName, setSelectedMemoryName] = useState(null);
+
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [serverData, setServerData] = useState(null);
   const [currPage, setCurrPage] = useState("home");
@@ -101,26 +102,25 @@ function App() {
   // const handleSkipOnboarding = () => setOnboardingStep(4);
 
   useEffect(() => {
-  fetch("http://localhost:5000/me", { credentials: "include" })
-    .then(res => (res.ok ? res.json() : null))
-    .then(user => {
-      if (!user) return;
-      setUserName(user.username);
-      setIsAuthenticated(true);
+    fetch("http://localhost:5000/me", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((user) => {
+        if (!user) return;
+        setUserName(user.username);
+        setIsAuthenticated(true);
+      });
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch("http://localhost:5000/logout", {
+      method: "POST",
+      credentials: "include",
     });
-}, []);
 
-const handleLogout = async () => {
-  await fetch("http://localhost:5000/logout", {
-    method: "POST",
-    credentials: "include",
-  });
-
-  setIsAuthenticated(false);
-  setUserName("");
-  setShowSignup(false);
-};
-
+    setIsAuthenticated(false);
+    setUserName("");
+    setShowSignup(false);
+  };
 
   // updated: logic to display users name after login
   if (!isAuthenticated) {
@@ -240,7 +240,11 @@ const handleLogout = async () => {
       )}
 
       {/* SLIDE-OUT MENU */}
-      <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onLogout={handleLogout} />
+      <SideMenu
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onLogout={handleLogout}
+      />
 
       {/* SEARCH - Only show on home */}
       {activeTab === "home" && (
@@ -372,13 +376,21 @@ const handleLogout = async () => {
         {activeTab === "maps" && <MapsPage />}
         {activeTab === "upload" && (
           <UploadFiles
+            memoryId={selectedMemoryId}
+            memoryName={SelectedMemoryName}
             onUploadComplete={(data) => {
               setServerData(data);
-              setActiveTab("canvas"); 
+              setActiveTab("canvas");
             }}
           />
         )}
-        {activeTab === "create" && <Memories setActiveTab={setActiveTab} />}
+        {activeTab === "create" && (
+          <Memories
+            setActiveTab={setActiveTab}
+            setSelectedMemoryId={setSelectedMemoryId}
+            setSelectedMemoryName={setSelectedMemoryName}
+          />
+        )}
         {activeTab === "sos" && (
           <SOSPage
             contacts={emergencyContacts}
@@ -386,7 +398,12 @@ const handleLogout = async () => {
           />
         )}
         {activeTab === "canvas" && (
-          <Create serverData={serverData} setActiveTab={setActiveTab} />
+          <Create
+            memoryId={selectedMemoryId}
+            memoryName={SelectedMemoryName}
+            serverData={serverData} 
+            setActiveTab={setActiveTab}
+          />
         )}
       </main>
 
