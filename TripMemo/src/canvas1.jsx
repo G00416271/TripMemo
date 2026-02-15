@@ -54,7 +54,7 @@ function CanvasImage({
   );
 }
 
-export default function CanvasPage({ memoryId, memoryName }) {
+export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
   const trRef = useRef(null);
   const nodeRefs = useRef({}); // stores refs for each item by id
 
@@ -508,7 +508,8 @@ export default function CanvasPage({ memoryId, memoryName }) {
       }}
     >
       {/* Your toolbox */}
-      <Tools tool={tool} setTool={setTool} />
+      <Tools tool={tool} setTool={setTool} onSave={saveCanvas} setActiveTab={setActiveTab} />
+
       <div
         style={{
           position: "absolute",
@@ -553,12 +554,6 @@ export default function CanvasPage({ memoryId, memoryName }) {
         />
       </div>
 
-      <button
-        onClick={saveCanvas}
-        style={{ position: "absolute", bottom: 10, left: 10, zIndex: 1000 }}
-      >
-        Save
-      </button>
 
       {/* Text editing input */}
       {editingTextId && (

@@ -24,12 +24,12 @@ export default function Create({ serverData, setActiveTab, memoryId, memoryName 
           </div>
           
           {/* toolbar on the left */}
-          <Tools/> 
+          <Tools setActiveTab={setActiveTab} /> 
 
 
           {/* main screen */}
           <div id="canvas-wrapper">
-            <Canvas memoryId={memoryId} memoryName={memoryName}/>
+            <Canvas memoryId={memoryId} memoryName={memoryName} setActiveTab={setActiveTab}/>
           </div>
 
 

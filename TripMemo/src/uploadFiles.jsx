@@ -2,27 +2,19 @@ import { useState } from "react";
 import ExifReader from "exifreader";
 import { useAuth } from "./Auth.jsx";
 
-export default function UploadFiles({
-  onUploadComplete,
-  memoryId,
-  memoryName,
-}) {
-  const [file, setFile] = useState(null);
+export default function UploadFiles({ onUploadComplete, memoryId, memoryName }) {
+  const [files, setFiles] = useState([]); // ✅ multiple
   const [status, setStatus] = useState("");
-  const [metadata, setMetadata] = useState(null);
-  const { user, isLoggedIn, logout } = useAuth();
+  const [metadataList, setMetadataList] = useState([]); // ✅ metadata per file
+  const { user } = useAuth();
 
   async function extractMetadataFromFile(file) {
-    // read the raw bytes from the uploaded file (client-side)
     const buffer = await file.arrayBuffer();
-
-    // parse EXIF (and other tags) from those bytes
     const tags = ExifReader.load(buffer, { expanded: true });
 
     return {
-      // GPS (best from expanded gps group)
-      gpsLatitude: tags.gps?.Latitude ?? null,
-      gpsLongitude: tags.gps?.Longitude ?? null,
+      fileName: file.name,
+      fileSize: file.size,
 
       gpsLatitude: tags?.gps?.Latitude?.description ?? null,
       gpsLongitude: tags?.gps?.Longitude?.description ?? null,
@@ -33,11 +25,11 @@ export default function UploadFiles({
     };
   }
 
-  //try uploading to database and seeing where w
-
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!file) return;
+
+    if (files.length === 0) return;
+
     if (!memoryId) {
       setStatus("No memory selected.");
       return;
@@ -45,22 +37,37 @@ export default function UploadFiles({
 
     setStatus("Reading EXIF...");
 
-    let meta;
+    let metas = [];
     try {
-      meta = await extractMetadataFromFile(file);
-      setMetadata(meta);
-      console.log(meta);
+      metas = await Promise.all(
+        files.map(async (f) => {
+          try {
+            return await extractMetadataFromFile(f);
+          } catch {
+            return { fileName: f.name, error: "No EXIF or unreadable" };
+          }
+        })
+      );
+      setMetadataList(metas);
+      console.log(metas);
     } catch (err) {
       console.error(err);
-      setStatus("Could not read EXIF (image may have none).");
-      meta = null;
+      setStatus("Could not read EXIF.");
+      metas = [];
     }
 
     const formData = new FormData();
-    formData.append("file", file);
+
+    // ✅ append all files (same key name)
+    for (const f of files) {
+      formData.append("files", f);
+    }
+
     formData.append("user", user.username);
     formData.append("memory_id", memoryId);
-    formData.append("metadata", JSON.stringify(meta)); // send EXIF to backend too
+
+    // ✅ send an array of metadata (same order as files)
+    formData.append("metadata", JSON.stringify(metas));
 
     setStatus("Uploading...");
 
@@ -77,7 +84,6 @@ export default function UploadFiles({
 
       const data = await res.json();
       setStatus("Upload complete");
-
       onUploadComplete?.(data);
     } catch (err) {
       console.error(err);
@@ -89,7 +95,7 @@ export default function UploadFiles({
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white p-6">
       <div className="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">
-          File Upload{" "}
+          File Upload
           <div className="text-2xl font-bold mb-6 text-center">
             {memoryId + " " + memoryName}
           </div>
@@ -100,7 +106,8 @@ export default function UploadFiles({
             type="file"
             accept="image/*"
             capture="environment"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            multiple // ✅ allow many
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             className="block w-full text-sm text-gray-300
                        file:mr-4 file:py-2 file:px-4
                        file:rounded-lg file:border-0
@@ -119,20 +126,24 @@ export default function UploadFiles({
 
         {status && <p className="mt-4 text-center text-gray-300">{status}</p>}
 
-        {file && (
+        {files.length > 0 && (
           <div className="mt-4 text-sm text-gray-400">
             <p>
-              <strong>Name:</strong> {file.name}
+              <strong>Selected:</strong> {files.length} file(s)
             </p>
-            <p>
-              <strong>Size:</strong> {file.size} bytes
-            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {files.map((f) => (
+                <li key={f.name}>
+                  {f.name} — {f.size} bytes
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
-        {metadata && (
+        {metadataList.length > 0 && (
           <pre className="mt-4 text-xs bg-gray-950 p-3 rounded-lg overflow-auto">
-            {JSON.stringify(metadata, null, 2)}
+            {JSON.stringify(metadataList, null, 2)}
           </pre>
         )}
       </div>

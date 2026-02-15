@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url';
 import cookieParser from "cookie-parser";
 import fs from "fs";
 
+import crypto from "crypto";
+import { uploadToR2, generateSignedUrl } from './r2.js';
+
+
+
 
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
@@ -55,7 +60,7 @@ app.use(cookieParser());
 
 // Parse requests
 app.use(bodyParser.urlencoded({ extended: true,  limit: "500mb" }));
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: "500mb" }));
 app.use("/api/canvas", canvasDbRoutes);
 
 
@@ -77,8 +82,10 @@ app.get('/icons', (req, res) => {
 //  FILE UPLOAD ENDPOINT (DATASCRAPER)
 // ---------------------------------------
 const upload = multer({
-  storage: multer.memoryStorage()
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB per file
 });
+
 
 
 // app.post("/process-images", upload.single("file"), async (req, res) => {
@@ -162,18 +169,19 @@ const upload = multer({
 //     res.status(500).json({ error: "Processing failed" });
 //   }
 // });
-app.post("/process-images", upload.single("file"), async (req, res) => {
+app.post("/process-images", upload.array("files"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
     }
 
-    const stagedImages = await stage([req.file]);
+    // stage expects an array, so pass req.files directly
+    const stagedImages = await stage(req.files);
 
-    // ✅ FIXED - add 'name' property
-    const payload = stagedImages.map(img => ({
-      name: req.file.originalname || 'image.jpg',  // Add this!
-      data: img.buffer.toString("base64")
+    // build payload per image (match stagedImages order)
+    const payload = stagedImages.map((img, i) => ({
+      name: req.files[i]?.originalname || `image_${i}.jpg`,
+      data: img.buffer.toString("base64"),
     }));
 
     const clipAnalysis = await clipAnalyse(payload);
@@ -344,6 +352,20 @@ try {
   console.error("Server startup error:", err);
 }
 
+app.get("/r2-test", async (req, res) => {
+  try {
+    const key = "debug/test.txt";
+    await uploadToR2({
+      key,
+      buffer: Buffer.from("hello r2"),
+      contentType: "text/plain",
+    });
+    const url = await generateSignedUrl(key);
+    res.json({ ok: true, key, url });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
 
 
 
