@@ -83,6 +83,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [selectedMemoryId, setSelectedMemoryId] = useState(null);
   const [SelectedMemoryName, setSelectedMemoryName] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [serverData, setServerData] = useState(null);
@@ -110,6 +111,10 @@ function App() {
         setIsAuthenticated(true);
       });
   }, []);
+
+  useEffect(() => {
+    console.log("activeTab:", activeTab);
+  }, [activeTab]);
 
   const handleLogout = async () => {
     await fetch("http://localhost:5000/logout", {
@@ -375,20 +380,24 @@ function App() {
 
         {activeTab === "maps" && <MapsPage />}
         {activeTab === "upload" && (
-          <UploadFiles
+          <FileUpload
             memoryId={selectedMemoryId}
             memoryName={SelectedMemoryName}
+            onFilesReady={(files) => setUploadedFiles(files)}
             onUploadComplete={(data) => {
               setServerData(data);
               setActiveTab("canvas");
             }}
           />
         )}
+
         {activeTab === "create" && (
           <Memories
             setActiveTab={setActiveTab}
             setSelectedMemoryId={setSelectedMemoryId}
             setSelectedMemoryName={setSelectedMemoryName}
+            uploadedFiles={uploadedFiles} // ✅ add
+            setUploadedFiles={setUploadedFiles}
           />
         )}
         {activeTab === "sos" && (
@@ -401,8 +410,10 @@ function App() {
           <Create
             memoryId={selectedMemoryId}
             memoryName={SelectedMemoryName}
-            serverData={serverData} 
+            serverData={serverData}
+            uploadedFiles={uploadedFiles}
             setActiveTab={setActiveTab}
+            setUploadedFiles={setUploadedFiles}
           />
         )}
       </main>

@@ -2,7 +2,13 @@ import { useState } from "react";
 import ExifReader from "exifreader";
 import { useAuth } from "./Auth.jsx";
 
-export default function UploadFiles({ onUploadComplete, memoryId, memoryName }) {
+export default function UploadFiles({
+  onUploadComplete,
+  onAddToCanvas,
+  memoryId,
+  memoryName,
+  onFilesReady,
+}) {
   const [files, setFiles] = useState([]); // ✅ multiple
   const [status, setStatus] = useState("");
   const [metadataList, setMetadataList] = useState([]); // ✅ metadata per file
@@ -83,8 +89,12 @@ export default function UploadFiles({ onUploadComplete, memoryId, memoryName }) 
       }
 
       const data = await res.json();
-      setStatus("Upload complete");
-      onUploadComplete?.(data);
+setStatus("Upload complete");
+onFilesReady?.(files);     // ✅ send files to App
+onUploadComplete?.(data);  // ✅ send server response to App
+
+
+      //files.forEach((f) => onAddToCanvas?.(f));
     } catch (err) {
       console.error(err);
       setStatus("Error connecting to server");

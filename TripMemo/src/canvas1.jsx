@@ -10,6 +10,7 @@ import {
 } from "react-konva";
 import useImage from "use-image";
 import Tools from "./toolbox/toolbar.jsx";
+import UploadFiles from "./uploadFiles.jsx";
 
 function CanvasImage({
   it,
@@ -54,7 +55,13 @@ function CanvasImage({
   );
 }
 
-export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
+export default function CanvasPage({
+  memoryId,
+  memoryName,
+  setActiveTab,
+  uploadedFiles,
+  setUploadedFiles,
+}) {
   const trRef = useRef(null);
   const nodeRefs = useRef({}); // stores refs for each item by id
 
@@ -74,6 +81,8 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  const [canvasLoaded, setCanvasLoaded] = useState(false);
 
   // camera (right-click pan)
   const [cam, setCam] = useState({ x: 0, y: 0 });
@@ -99,8 +108,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
 
   const stageRef = useRef(null);
   const textInputRef = useRef(null);
-  const idRef = useRef(1);
-  const nextId = () => String(idRef.current++);
+  const nextId = () => crypto.randomUUID();
 
   // Add to history when items change (but not during drawing)
   const addToHistory = useCallback(
@@ -264,6 +272,11 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
       return;
     }
 
+    if (tool === "eraser") {
+      eraseAtPointer(e);
+      return;
+    }
+
     // TEXT: click to place a text item
     if (tool === "text") {
       const id = nextId();
@@ -334,6 +347,21 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
     }
   }
 
+  function eraseAtPointer(e) {
+    const target = e.target;
+    const stage = target.getStage();
+
+    // clicked empty space -> nothing to erase
+    if (target === stage) return;
+
+    const id = target?.attrs?.id;
+    if (!id) return;
+
+    const newItems = items.filter((it) => it.id !== id);
+    updateItems(newItems);
+    setSelectedId(null);
+  }
+
   function handleMouseMove(e) {
     // pan
     if (isPanningRef.current) {
@@ -342,6 +370,10 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
       const dy = now.y - lastMouseRef.current.y;
       lastMouseRef.current = now;
       setCam((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+      return;
+    }
+    if (tool === "eraser" && e.evt.buttons === 1) {
+      eraseAtPointer(e);
       return;
     }
 
@@ -386,6 +418,8 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
         addToHistory(prev);
         return prev;
       });
+
+      setTool("selection");
 
       return;
     }
@@ -438,17 +472,79 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
             src,
           };
 
-          const newItems = [...items, newItem];
-          updateItems(newItems);
+          // ✅ always append to the latest items
+          setItems((prev) => {
+            const next = [...prev, newItem];
+            addToHistory(next);
+            return next;
+          });
+
           setSelectedId(id);
         };
+
         img.src = src;
       };
 
       reader.readAsDataURL(file);
     },
-    [items, updateItems, cam],
+    [cam, addToHistory], // ✅ NO items, NO updateItems
   );
+
+const loadReqRef = useRef(0);
+
+async function loadCanvas() {
+  try {
+    if (!memoryId) return;
+
+    // every load gets a new id
+    const reqId = ++loadReqRef.current;
+
+    const res = await fetch(
+      `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`
+    );
+    if (!res.ok) throw new Error("Load failed");
+
+    const data = await res.json();
+
+    // if another load started after this one, ignore this result
+    if (reqId !== loadReqRef.current) return;
+
+    setItems(data.items ?? []);
+    setCam(data.cam ?? { x: 0, y: 0 });
+    setSelectedId(null);
+
+    setHistory([data.items ?? []]);
+    setHistoryIndex(0);
+    setCanvasLoaded(true);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+
+  useEffect(() => {
+    setCanvasLoaded(false);
+    loadCanvas();
+    console.log("memoryid: " + memoryId + "memory name: " + memoryName);
+  }, [memoryId]);
+
+  const addedOnceRef = useRef(false);
+  useEffect(() => {
+    addedOnceRef.current = false;
+  }, [memoryId, uploadedFiles]);
+
+  useEffect(() => {
+  if (!canvasLoaded) return;
+  if (addedOnceRef.current) return;
+  if (!uploadedFiles || uploadedFiles.length === 0) return;
+
+  uploadedFiles.forEach(addImageFromFile);
+  addedOnceRef.current = true;
+
+  setUploadedFiles([]); // ✅ clear staged uploads
+}, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
+
+
 
   async function saveCanvas() {
     try {
@@ -471,31 +567,6 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
     }
   }
 
-  async function loadCanvas() {
-    try {
-      if (!memoryId) return;
-
-      const res = await fetch(
-        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
-      );
-      if (!res.ok) throw new Error("Load failed");
-      const data = await res.json();
-      setItems(data.items ?? []);
-      setCam(data.cam ?? { x: 0, y: 0 });
-      setSelectedId(null);
-
-      setHistory([data.items ?? []]);
-      setHistoryIndex(0);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  useEffect(() => {
-    loadCanvas();
-    console.log("memoryid: "+ memoryId + "memory name: " + memoryName)
-  }, [memoryId]);
-
   return (
     <div
       onContextMenu={(e) => e.preventDefault()}
@@ -507,8 +578,13 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
         position: "relative",
       }}
     >
-      {/* Your toolbox */}
-      <Tools tool={tool} setTool={setTool} onSave={saveCanvas} setActiveTab={setActiveTab} />
+      <Tools
+        tool={tool}
+        setTool={setTool}
+        onSave={saveCanvas}
+        setActiveTab={setActiveTab}
+        onPickFiles={(files) => files.forEach(addImageFromFile)}
+      />
 
       <div
         style={{
@@ -542,7 +618,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
         <div>Double-click text to edit</div>
       </div>
 
-      {/* Image upload */}
+      {/* Image upload
       <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1000 }}>
         <input
           type="file"
@@ -552,8 +628,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
             e.target.value = ""; // clears file so same image can be selected again
           }}
         />
-      </div>
-
+      </div> */}
 
       {/* Text editing input */}
       {editingTextId && (
@@ -620,6 +695,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
               if (it.type === "rect") {
                 return (
                   <Rect
+                    id={it.id}
                     ref={(node) => (nodeRefs.current[it.id] = node)}
                     key={it.id}
                     x={it.x}
@@ -659,6 +735,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
               if (it.type === "line") {
                 return (
                   <Line
+                    id={it.id}
                     key={it.id}
                     points={it.points}
                     stroke="black"
@@ -682,6 +759,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
               if (it.type === "pencil") {
                 return (
                   <Line
+                    id={it.id}
                     key={it.id}
                     points={it.points}
                     stroke="black"
@@ -711,6 +789,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
               if (it.type === "text") {
                 return (
                   <Text
+                    id={it.id}
                     ref={(node) => (nodeRefs.current[it.id] = node)}
                     key={it.id}
                     x={it.x}
@@ -748,6 +827,7 @@ export default function CanvasPage({ memoryId, memoryName , setActiveTab }) {
               if (it.type === "image") {
                 return (
                   <CanvasImage
+                    id={it.id}
                     key={it.id}
                     it={it}
                     isSelected={it.id === selectedId}

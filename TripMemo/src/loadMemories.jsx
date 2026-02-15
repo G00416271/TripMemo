@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "./Auth.jsx";
 
 
-export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName }) {
+export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName, setUploadedFiles }) {
 
 
   const [memories, setMemories] = useState([]);
@@ -138,11 +138,29 @@ useEffect(() => {
     window.history.back();
   };
 
-const handleCardDoubleClick = (memoryId, memoryTitle) => {
+const handleCardDoubleClick = async (memoryId, memoryTitle) => {
+  setUploadedFiles([]); 
+
   setSelectedMemoryId(memoryId);
   setSelectedMemoryName(memoryTitle);
-  setActiveTab("upload");
+
+  try {
+    const res = await fetch(
+      `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`
+    );
+    if (!res.ok) throw new Error("Load failed");
+
+    const data = await res.json();
+    const hasItems = data.items && data.items.length > 0;
+
+    setActiveTab(hasItems ? "canvas" : "upload");
+  } catch (err) {
+    console.error(err);
+    setActiveTab("upload");
+  }
 };
+
+
 
 
 

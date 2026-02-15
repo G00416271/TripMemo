@@ -4,7 +4,7 @@ function tbi(i) {
   return `http://localhost:5000/icons/${i}.svg`;
 }
 
-function Tools({ tool, setTool, onSave, setActiveTab, memoryName, memoryId }) {
+function Tools({ tool, setTool, onSave, onPickFiles }) {
   return (
     <div
       style={{
@@ -25,7 +25,7 @@ function Tools({ tool, setTool, onSave, setActiveTab, memoryName, memoryId }) {
         // gap: "clamp(16px, 3vw, 30px)",
       }}
     >
-      {["selection", "line", "rectangle", "pencil", "text"].map((icon) => (
+      {["selection", "pencil", "rectangle", "line", "text" , "eraser"].map((icon) => (
         <div
           key={icon}
           className={`toolbar-item ${tool === icon ? "active-tool" : ""}`}
@@ -53,25 +53,24 @@ function Tools({ tool, setTool, onSave, setActiveTab, memoryName, memoryId }) {
         </div>
       ))}
 
-      <button
-        onClick={() => setActiveTab("upload")}
-        style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            margin: "10px",
-            padding: "6px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "0.2s",
-            fontFamily: "Helvetica, Arial, sans-serif",
-          }}
-      >
-        <img
-        style={{ width: "clamp(25px, 25px, 85px)", height: "auto" }}
-        src={tbi("upload")}/>
-      </button>
+      <input
+        id="toolbar-upload"
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          onPickFiles?.(files);
+          e.target.value = "";
+        }}
+      />
 
+      <button
+        onClick={() => document.getElementById("toolbar-upload")?.click()}
+      >
+        Upload
+      </button>
       {/* SAVE BUTTON */}
       <button
         onClick={onSave}
