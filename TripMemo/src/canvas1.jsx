@@ -21,7 +21,7 @@ function CanvasImage({
   nodeRef,
   onResize,
 }) {
-  const [img] = useImage(it.src);
+  const [img] = useImage(it.src, "anonymous");
   if (!img) return null;
 
   return (
@@ -490,37 +490,36 @@ export default function CanvasPage({
     [cam, addToHistory], // ✅ NO items, NO updateItems
   );
 
-const loadReqRef = useRef(0);
+  const loadReqRef = useRef(0);
 
-async function loadCanvas() {
-  try {
-    if (!memoryId) return;
+  async function loadCanvas() {
+    try {
+      if (!memoryId) return;
 
-    // every load gets a new id
-    const reqId = ++loadReqRef.current;
+      // every load gets a new id
+      const reqId = ++loadReqRef.current;
 
-    const res = await fetch(
-      `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`
-    );
-    if (!res.ok) throw new Error("Load failed");
+      const res = await fetch(
+        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
+      );
+      if (!res.ok) throw new Error("Load failed");
 
-    const data = await res.json();
+      const data = await res.json();
 
-    // if another load started after this one, ignore this result
-    if (reqId !== loadReqRef.current) return;
+      // if another load started after this one, ignore this result
+      if (reqId !== loadReqRef.current) return;
 
-    setItems(data.items ?? []);
-    setCam(data.cam ?? { x: 0, y: 0 });
-    setSelectedId(null);
+      setItems(data.items ?? []);
+      setCam(data.cam ?? { x: 0, y: 0 });
+      setSelectedId(null);
 
-    setHistory([data.items ?? []]);
-    setHistoryIndex(0);
-    setCanvasLoaded(true);
-  } catch (err) {
-    console.error(err);
+      setHistory([data.items ?? []]);
+      setHistoryIndex(0);
+      setCanvasLoaded(true);
+    } catch (err) {
+      console.error(err);
+    }
   }
-}
-
 
   useEffect(() => {
     setCanvasLoaded(false);
@@ -534,17 +533,15 @@ async function loadCanvas() {
   }, [memoryId, uploadedFiles]);
 
   useEffect(() => {
-  if (!canvasLoaded) return;
-  if (addedOnceRef.current) return;
-  if (!uploadedFiles || uploadedFiles.length === 0) return;
+    if (!canvasLoaded) return;
+    if (addedOnceRef.current) return;
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
 
-  uploadedFiles.forEach(addImageFromFile);
-  addedOnceRef.current = true;
+    uploadedFiles.forEach(addImageFromFile);
+    addedOnceRef.current = true;
 
-  setUploadedFiles([]); // ✅ clear staged uploads
-}, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
-
-
+    setUploadedFiles([]); // ✅ clear staged uploads
+  }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
 
   async function saveCanvas() {
     try {
@@ -565,6 +562,47 @@ async function loadCanvas() {
     } catch (err) {
       console.error(err);
     }
+  }
+
+  function screenToWorld(stage, clientX, clientY) {
+    const rect = stage.container().getBoundingClientRect();
+    const xOnStage = clientX - rect.left;
+    const yOnStage = clientY - rect.top;
+
+    // Stage is drawn with x={cam.x}, y={cam.y}
+    // so world = screen - cam
+    return { x: xOnStage - cam.x, y: yOnStage - cam.y };
+  }
+
+  function addImageFromUrl(src, x, y) {
+    if (!src) return;
+
+    const img = new window.Image();
+    img.crossOrigin = "anonymous"; // helps with CORS (Pixabay usually OK)
+    img.onload = () => {
+      const id = nextId();
+      const w = 200;
+      const h = Math.round((img.height / img.width) * w);
+
+      const newItem = {
+        id,
+        type: "image",
+        x,
+        y,
+        w,
+        h,
+        src,
+      };
+
+      setItems((prev) => {
+        const next = [...prev, newItem];
+        addToHistory(next);
+        return next;
+      });
+
+      setSelectedId(id);
+    };
+    img.src = src;
   }
 
   return (
@@ -670,6 +708,32 @@ async function loadCanvas() {
           userSelect: "none",
         }}
       >
+        <div
+          style={{
+            width: "100vw",
+            height: "100vh",
+            border: "1px solid #cccccc86",
+            overflow: "hidden",
+            userSelect: "none",
+          }}
+          onDragOver={(e) => {
+            e.preventDefault(); // REQUIRED or drop won't fire
+            e.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+
+            const src =
+              e.dataTransfer.getData("text/uri-list") ||
+              e.dataTransfer.getData("text/plain");
+
+            const stage = stageRef.current;
+            if (!stage || !src) return;
+
+            const pos = screenToWorld(stage, e.clientX, e.clientY);
+            addImageFromUrl(src, pos.x, pos.y);
+          }}
+        >
         <Stage
           ref={stageRef}
           width={size.w}
@@ -844,6 +908,7 @@ async function loadCanvas() {
             })}
           </Layer>
         </Stage>
+        </div>
       </div>
     </div>
   );

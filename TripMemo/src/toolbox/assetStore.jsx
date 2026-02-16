@@ -10,7 +10,7 @@ export default function BottomDrawer({ serverData }) {
   const [dragging, setDragging] = useState(false);
 
   const [page, setPage] = useState(1);
-  const PER_PAGE = 15;
+  const PER_PAGE = 25;
 
   const PIXABAY_API_KEY = "53481167-b261e4a8fd5c85523c6b9b422";
 
@@ -82,7 +82,7 @@ export default function BottomDrawer({ serverData }) {
             `&q=${encodeURIComponent(query)}` +
             `&image_type=photo&per_page=${PER_PAGE}` +
             `&page=${page}` +
-            `&safesearch=true`
+            `&safesearch=true`,
         );
 
         const data = await res.json();
@@ -233,9 +233,7 @@ export default function BottomDrawer({ serverData }) {
                 flex: 1,
               }}
             >
-              {assets.length === 0 && (
-                <p style={{ color: "#666" }}>loading…</p>
-              )}
+              {assets.length === 0 && <p style={{ color: "#666" }}>loading…</p>}
 
               {assets.map((img) => (
                 <img
@@ -243,12 +241,24 @@ export default function BottomDrawer({ serverData }) {
                   src={img.webformatURL}
                   loading="lazy"
                   onClick={() => setSelectedImage(img)}
+                  draggable
+                  onDragStart={(e) => {
+                    // pick whichever you prefer
+                    const src = img.largeImageURL || img.webformatURL;
+
+                    // put the URL in the drag payload
+                    e.dataTransfer.setData("text/uri-list", src);
+                    e.dataTransfer.setData("text/plain", src);
+
+                    // optional: nicer cursor behavior
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                   style={{
                     width: 270,
                     height: 210,
                     borderRadius: 8,
                     objectFit: "cover",
-                    cursor: "pointer",
+                    cursor: "grab",
                     boxShadow: "0 3px 10px rgba(0,0,0,0.15)",
                     border: "3px solid rgba(26, 1, 255, 0.15)",
                     transition: "0.2s",
@@ -269,7 +279,10 @@ export default function BottomDrawer({ serverData }) {
       </div>
 
       {/* popup */}
-      <ImagePreview image={selectedImage} onClose={() => setSelectedImage(null)} />
+      <ImagePreview
+        image={selectedImage}
+        onClose={() => setSelectedImage(null)}
+      />
     </>
   );
 }
