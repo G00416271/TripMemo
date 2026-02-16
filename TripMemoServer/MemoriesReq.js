@@ -1,12 +1,8 @@
 import mysql from "mysql2/promise";
+import db from "./db.js";
 
 export default async function getMemories(formData) {
-  const db = await mysql.createConnection({
-    host: "tripmemo",
-    user: "root",
-    password: "",
-    database: "tripmemodb",
-  });
+
 
   if (formData.action === "fetch") {
     const [rows] = await db.execute(

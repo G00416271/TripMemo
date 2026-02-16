@@ -66,55 +66,80 @@ def clip_rank(image_tensor, labels, threshold=15, top_k=None):
         return results
 
 
-def analyze_image_bytes_two_pass(img_bytes, threshold=15):
+def analyze_image_bytes_three_pass(img_bytes, threshold=15, top_k_main=3, top_k_sub=20, top_k_third=20):
     pil = Image.open(BytesIO(img_bytes)).convert("RGB")
     image_tensor = preprocess(pil).unsqueeze(0).to(device)
 
     # PASS 1: hard limit top 3 classifiers
-    main_results = clip_rank(image_tensor, classifier, threshold=threshold, top_k=3)
+    main_results = clip_rank(image_tensor, classifier, threshold=threshold, top_k=top_k_main)
 
-    # PASS 2: no limit on subcategories
+    # PASS 2: top 20 subcategories per main label
     sub_results = {}
+    second_pass_pool = []  # <-- collect all pass-2 predictions here
+
     for r in main_results:
         main_label = r["prediction"]
         words = subcats.get(main_label, [])
         if not words:
             continue
 
-        sub_results[main_label] = clip_rank(
+        sub_hits = clip_rank(image_tensor, words, threshold=threshold, top_k=top_k_sub)
+        sub_results[main_label] = sub_hits
+
+        # add pass-2 predictions to the pool
+        for hit in sub_hits:
+            second_pass_pool.append(hit["prediction"])
+
+    # dedupe pool (avoid wasting tokens / compute)
+    second_pass_pool = list(dict.fromkeys(second_pass_pool))
+
+    # PASS 3: run CLIP again against the whole pool (one more analysis)
+    third_results = []
+    if second_pass_pool:
+        third_results = clip_rank(
             image_tensor,
-            words,
+            second_pass_pool,
             threshold=threshold,
-            top_k=20  
+            top_k=top_k_third  # set None if you want unlimited
         )
 
-    return main_results, sub_results
+    return main_results, sub_results, third_results
 
 def main():
     images = json.loads(sys.stdin.read())
+
     labels = set()
     sublabels = set()
+    thirdlabels = set()
 
     for img in images:
         try:
             img_bytes = base64.b64decode(img["data"])
-            main_results, sub_results = analyze_image_bytes_two_pass(img_bytes, threshold=15)
+            main_results, sub_results, third_results = analyze_image_bytes_three_pass(
+                img_bytes,
+                threshold=15,
+                top_k_main=3,
+                top_k_sub=20,
+                top_k_third=20
+            )
 
             for r in main_results:
                 labels.add(r["prediction"])
 
-            # collect subcategory predictions too
             for main_label, results in sub_results.items():
                 for r in results:
                     sublabels.add(f"{main_label}:{r['prediction']}")
 
+            for r in third_results:
+                thirdlabels.add(r["prediction"])
+
         except (KeyError, base64.binascii.Error, UnidentifiedImageError):
             continue
 
-    # output both if you want
     print(json.dumps({
         "main": sorted(labels),
-        "sub": sorted(sublabels)
+        "sub": sorted(sublabels),
+        "third": sorted(thirdlabels)
     }))
 
 if __name__ == "__main__":
