@@ -1,14 +1,19 @@
 import mysql from "mysql2/promise";
-
-
+import db from "./db.js";
 
 //Function is meant to get interst tags from database
-export default async function getInterests(tags = [], fields) {  //takes extracted tags , user details(username, passwordhash)
-  const u = fields.user;
+export default async function getInterests(tags = [], fields) {
+  //takes extracted tags , user details(username, passwordhash)
+  const u = fields?.user || fields?.username;
+  if (!u) {
+    await db.end?.();
+    return { error: "username missing" };
+  }
+
   tags = tags
-  .flat(Infinity)
-  .filter(x => typeof x === "string")
-  .map(x => x.toLowerCase());
+    .flat(Infinity)
+    .filter((x) => typeof x === "string")
+    .map((x) => x.toLowerCase());
 
   //turns tags into array
   if (!Array.isArray(tags)) {
@@ -16,20 +21,11 @@ export default async function getInterests(tags = [], fields) {  //takes extract
   }
 
 
-  //mysql connection
-  const db = await mysql.createConnection({
-    host: "tripmemo",
-    user: "root",
-    password: "",
-    database: "tripmemodb",
-  });
-
-
   //sql querey
   const [rows] = await db.execute(
     "SELECT user_profile FROM users WHERE username = ?",
-    //returns all information regarding the user 
-    [u]
+    //returns all information regarding the user
+    [u],
   );
 
   //user t
@@ -44,15 +40,13 @@ export default async function getInterests(tags = [], fields) {  //takes extract
   }
 
   // Convert [{interest: "..."}] → ["..."]
-  const profileInterests = profile.map(
-    item => item.interest.toLowerCase()
-  );
+  const profileInterests = profile.map((item) => item.interest.toLowerCase());
 
   // Bidirectional partial matching
-  const matched = tags.filter(tag => {
+  const matched = tags.filter((tag) => {
     const tagLower = tag.toLowerCase();
-    return profileInterests.some(interest =>
-      interest.includes(tagLower) || tagLower.includes(interest)
+    return profileInterests.some(
+      (interest) => interest.includes(tagLower) || tagLower.includes(interest),
     );
   });
 
@@ -62,6 +56,6 @@ export default async function getInterests(tags = [], fields) {  //takes extract
     user: u,
     interests: profileInterests,
     matchedInterests: matched,
-    inputTags: tags
+    inputTags: tags,
   };
 }

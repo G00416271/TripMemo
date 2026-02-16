@@ -42,23 +42,34 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
         });
   };
 
-  const DBdelete = async (memory_id) => {
-    const fd = new FormData();
-    fd.append("action", "delete");
-    fd.append("memory_id", memory_id);
-    
-    fetch("http://localhost:5000/memories", {
-        method: "POST",
-        body: fd,
-        })
-        .then((res) => res.json())
-        .then((data) => {
-        console.log("Memory deleted:", data);
-        })
-        .catch((err) => {
-        console.error("Error:", err);
-        });
-  };
+const DBdelete = async (memory_id) => {
+  const fd = new FormData();
+  fd.append("action", "delete");
+  fd.append("memory_id", String(memory_id));
+
+  const res = await fetch("http://localhost:5000/memories", {
+    method: "POST",
+    body: fd,
+  });
+
+  if (!res.ok) throw new Error("Memory delete failed");
+  return res.json();
+};
+
+  const deleteCanvas = async (memoryId) => {
+  const res = await fetch(
+    `http://localhost:5000/api/canvas/delete?memoryId=${memoryId}`,
+    { method: "DELETE" }
+  );
+
+  // ignore if canvas didn't exist
+  if (res.status === 404) return;
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Canvas delete failed: ${res.status} ${msg}`);
+  }
+};
 
 useEffect(() => {
   if (!user?.user_id) return; 
@@ -115,14 +126,25 @@ useEffect(() => {
     setActiveMenu(null);
   };
 
-  const confirmDelete = () => {
-    if (memoryToDelete) {
-      setMemories(memories.filter(memory => memory.memory_id !== memoryToDelete));
-      DBdelete(memoryToDelete);
-    }
+ const confirmDelete = async () => {
+  if (!memoryToDelete) return;
+
+  try {
+    // 1) delete canvas + tags + r2 images
+    await deleteCanvas(memoryToDelete);
+
+    // 2) delete memory row
+    await DBdelete(memoryToDelete);
+
+    // 3) update UI
+    setMemories((prev) => prev.filter((m) => m.memory_id !== memoryToDelete));
+  } catch (err) {
+    console.error(err);
+  } finally {
     setShowDeleteConfirm(false);
     setMemoryToDelete(null);
-  };
+  }
+};
 
   const cancelDelete = () => {
     setShowDeleteConfirm(false);

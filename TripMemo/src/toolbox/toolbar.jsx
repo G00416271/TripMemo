@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import "./toolbox.css";
 
 function tbi(i) {
@@ -5,6 +6,8 @@ function tbi(i) {
 }
 
 function Tools({ tool, setTool, onSave, onPickFiles }) {
+  const fileInputRef = useRef(null);
+
   return (
     <div
       style={{
@@ -22,39 +25,40 @@ function Tools({ tool, setTool, onSave, onPickFiles }) {
         padding: "clamp(8px, 1vw, 14px)",
         display: "flex",
         flexDirection: "column",
-        // gap: "clamp(16px, 3vw, 30px)",
       }}
     >
-      {["selection", "pencil", "rectangle", "line", "text" , "eraser"].map((icon) => (
-        <div
-          key={icon}
-          className={`toolbar-item ${tool === icon ? "active-tool" : ""}`}
-          onClick={() => setTool(icon)}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            margin: "10px",
-            padding: "6px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "0.2s",
-            fontFamily: "Helvetica, Arial, sans-serif",
-          }}
-        >
-          <img
-            src={tbi(icon)}
-            alt={`${icon} icon`}
-            style={{ width: "clamp(20px, 20px, 80px)", height: "auto" }}
-          />
-          <span style={{ fontSize: "16px", paddingLeft: "4px" }}>
-            {icon.charAt(0).toUpperCase() + icon.slice(1)}
-          </span>
-        </div>
-      ))}
+      {["selection", "pencil", "rectangle", "line", "text", "eraser"].map(
+        (icon) => (
+          <div
+            key={icon}
+            className={`toolbar-item ${tool === icon ? "active-tool" : ""}`}
+            onClick={() => setTool(icon)}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              margin: "10px",
+              padding: "6px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "0.2s",
+              fontFamily: "Helvetica, Arial, sans-serif",
+            }}
+          >
+            <img
+              src={tbi(icon)}
+              alt={`${icon} icon`}
+              style={{ width: "clamp(20px, 20px, 80px)", height: "auto" }}
+            />
+            <span style={{ fontSize: "16px", paddingLeft: "4px" }}>
+              {icon.charAt(0).toUpperCase() + icon.slice(1)}
+            </span>
+          </div>
+        ),
+      )}
 
       <input
-        id="toolbar-upload"
+        ref={fileInputRef}
         type="file"
         accept="image/*"
         multiple
@@ -66,12 +70,8 @@ function Tools({ tool, setTool, onSave, onPickFiles }) {
         }}
       />
 
-      <button
-        onClick={() => document.getElementById("toolbar-upload")?.click()}
-      >
-        Upload
-      </button>
-      {/* SAVE BUTTON */}
+      <button onClick={() => fileInputRef.current?.click()}>Upload</button>
+
       <button
         onClick={onSave}
         style={{
@@ -87,7 +87,6 @@ function Tools({ tool, setTool, onSave, onPickFiles }) {
       >
         Save
       </button>
-
     </div>
   );
 }

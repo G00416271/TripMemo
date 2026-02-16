@@ -1,33 +1,27 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import path from 'path';
-import multer from 'multer';
-import { fileURLToPath } from 'url';
+import express from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
+import path from "path";
+import multer from "multer";
+import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 import fs from "fs";
 
 import crypto from "crypto";
-import { uploadToR2, generateSignedUrl } from './r2.js';
+import { uploadToR2, generateSignedUrl } from "./r2.js";
 
-
-
-
-import processImages from './DataScraper.js';
-import getInterests from './InterestReq.js';
-import getNodes from './neoDB.js';
-import getMemories from './MemoriesReq.js';
-import { neoConnectTest } from './neoConnectTest.js';
-import { mysqlConnectTest } from './dbConnTest.js';
+import processImages from "./DataScraper.js";
+import getInterests from "./InterestReq.js";
+import getNodes from "./neoDB.js";
+import getMemories from "./MemoriesReq.js";
+import { neoConnectTest } from "./neoConnectTest.js";
+import { mysqlConnectTest } from "./dbConnTest.js";
 import login, { register } from "./login-register.js";
-import requireAuth from "./auth.js"
-import db from "./db.js"
-import { clipAnalyse } from './clipAnalyse.js';  
-import stage from './imageStaging.js';
+import requireAuth from "./auth.js";
+import db from "./db.js";
+import { clipAnalyse } from "./clipAnalyse.js";
+import stage from "./imageStaging.js";
 import canvasDbRoutes from "./canvasDbRoutes.js";
-
-
-
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -37,10 +31,12 @@ const app = express();
 const PORT = 5000;
 
 // Enable CORS
-app.use(cors({
-  origin: "http://localhost:5173", 
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  }),
+);
 
 // app.options("/*", cors({
 //   origin: "http://localhost:5173",
@@ -56,22 +52,18 @@ app.use(cookieParser());
 //   next();
 // };
 
-
-
 // Parse requests
-app.use(bodyParser.urlencoded({ extended: true,  limit: "500mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "500mb" }));
 app.use(bodyParser.json({ limit: "500mb" }));
 app.use("/api/canvas", canvasDbRoutes);
 
-
-
 // Serve static icons
-app.use('/icons', express.static(path.join(__dirname, 'Icons')));
+app.use("/icons", express.static(path.join(__dirname, "Icons")));
 
 // GET icons (safe)
-app.get('/icons', (req, res) => {
+app.get("/icons", (req, res) => {
   try {
-    res.json({ message: 'Icons are available at /icons/<filename>.svg' });
+    res.json({ message: "Icons are available at /icons/<filename>.svg" });
   } catch (err) {
     console.error("GET /icons error:", err);
     res.status(500).json({ error: "Failed to load icons" });
@@ -86,8 +78,6 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB per file
 });
 
-
-
 // app.post("/process-images", upload.single("file"), async (req, res) => {
 //   try {
 //     if (!req.file) {
@@ -96,7 +86,6 @@ const upload = multer({
 
 //     const fileBuffer = req.file.buffer;
 //     const fileName = req.file.originalname;
-
 
 //     let filePath;
 //     try {
@@ -115,7 +104,6 @@ const upload = multer({
 //       return res.status(500).json({ error: "Image processing failed" });
 //     }
 
-
 //     //clip
 //     let clipAnalysis = {};
 //     try {
@@ -124,9 +112,6 @@ const upload = multer({
 //       console.error("clipAnalyseBytes() error:", err);
 //       return res.status(500).json({ error: "CLIP analysis failed" });
 //     }
-
-    
-
 
 //     // Extract tags safely
 //     let tags = [];
@@ -183,7 +168,6 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
     if (!stagedImages || stagedImages.length === 0) {
       return res.status(400).json({ error: "No images were staged" });
     }
-    
 
     // 4. Build payload
     const payload = stagedImages.map((img, i) => ({
@@ -194,42 +178,30 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
     const clipAnalysis = await clipAnalyse(payload);
     console.log(clipAnalysis);
     return res.json(clipAnalysis);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
 
-
-
-
 // ---------------------------------------
 //  QUICK INTEREST CHECK
 // ---------------------------------------
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {
-    const result = await getInterests(req.body);
+    // support both shapes:
+    // 1) req.body.tags + req.body.user
+    // 2) req.body is tags array (old)
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const fields = req.body;
+
+    const result = await getInterests(tags, fields);
     res.json(result);
   } catch (err) {
     console.error("Error in /interestReq route:", err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
-
-app.post("/memories", upload.none(), async (req, res) => {
-  try {
-    const result = await getMemories(req.body);
-    res.json(result);
-  } catch (err) {
-    console.error("Error in /interestReq route:", err);
-    res.status(500).json({ error: "Processing failed" });
-  }
-});
-
-
-
-
 
 //-------------------------------------
 //  REGISTER/LOGIN
@@ -251,14 +223,12 @@ app.post("/login", upload.none(), async (req, res) => {
     maxAge: 86400000,
   });
 
-
-   return res.status(200).json(user);
+  return res.status(200).json(user);
 });
-
 
 //register
 app.post("/register", upload.none(), async (req, res) => {
-  const {username, firstName, lastName, email, password} = req.body;
+  const { username, firstName, lastName, email, password } = req.body;
 
   if (!password || (!username && !email)) {
     return res.status(400).json({ error: "Missing credentials" });
@@ -274,21 +244,18 @@ app.post("/register", upload.none(), async (req, res) => {
     maxAge: 86400000,
   });
 
-
-   return res.status(200).json(user);
+  return res.status(200).json(user);
 });
-
 
 //auth after login
 app.get("/me", requireAuth, async (req, res) => {
   const [rows] = await db.execute(
     "SELECT user_id, username, email FROM users WHERE user_id = ?",
-    [req.userId]
+    [req.userId],
   );
 
   res.json(rows[0]);
 });
-
 
 //logout
 app.post("/logout", (req, res) => {
@@ -301,38 +268,15 @@ app.post("/logout", (req, res) => {
   res.sendStatus(200);
 });
 
-// canvases folder
-const CANVAS_DIR = path.join(__dirname, "canvases");
-if (!fs.existsSync(CANVAS_DIR)) fs.mkdirSync(CANVAS_DIR, { recursive: true });
-
-// POST /api/canvas/save
-app.post("/api/canvas/save", (req, res) => {
-  const { memoryId, items, cam } = req.body;
-
-  if (!memoryId) return res.status(400).json({ error: "memoryId required" });
-
-  const filePath = path.join(CANVAS_DIR, `${memoryId}.json`);
-  fs.writeFileSync(filePath, JSON.stringify({ items, cam }, null, 2), "utf8");
-
-  res.json({ ok: true, memoryId });
-});
-
-// GET /api/canvas/load?memoryId=123
-app.get("/api/canvas/load", (req, res) => {
-  const { memoryId } = req.query;
-
-  if (!memoryId) return res.status(400).json({ error: "memoryId required" });
-
-  const filePath = path.join(CANVAS_DIR, `${memoryId}.json`);
-
-  if (!fs.existsSync(filePath)) {
-    return res.json({ items: [], cam: { x: 0, y: 0 } });
+app.post("/memories", upload.none(), async (req, res) => {
+  try {
+    const result = await getMemories(req.body);
+    res.json(result ?? { ok: true });
+  } catch (err) {
+    console.error("Error in /memories route:", err);
+    res.status(500).json({ error: "Processing failed" });
   }
-
-  const raw = fs.readFileSync(filePath, "utf8");
-  res.json(JSON.parse(raw));
 });
-
 //connection tests
 app.get("/ping", (req, res) => {
   res.send("pong");
@@ -348,14 +292,12 @@ app.get("/mysqlping", async (req, res) => {
   res.json(result);
 });
 
-
-
 // ---------------------------------------
 //  START SERVER
 // ---------------------------------------
 try {
   app.listen(PORT, () =>
-    console.log(`✅ Server running on http://localhost:${PORT}`)
+    console.log(`✅ Server running on http://localhost:${PORT}`),
   );
 } catch (err) {
   console.error("Server startup error:", err);
@@ -376,7 +318,5 @@ app.get("/r2-test", async (req, res) => {
   }
 });
 
-
-
-//notes: 
-// Strip metadata from Client side. 
+//notes:
+// Strip metadata from Client side.

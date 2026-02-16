@@ -21,7 +21,7 @@ function CanvasImage({
   nodeRef,
   onResize,
   onSmoothDragEnd,
-  snap,              // ✅ add
+  snap, // ✅ add
 }) {
   const [img] = useImage(it.imageUrl ?? it.src, "anonymous");
   if (!img) return null;
@@ -154,17 +154,17 @@ export default function CanvasPage({
   );
 
   const safeItems = items.map((it) => {
-  if (it.type !== "image") return it;
+    if (it.type !== "image") return it;
 
-  // if it's a base64 data url, DO NOT send it
-  const isDataUrl = typeof it.src === "string" && it.src.startsWith("data:");
-  if (isDataUrl) {
-    const { src, ...rest } = it;
-    return rest; // remove src
-  }
+    // if it's a base64 data url, DO NOT send it
+    const isDataUrl = typeof it.src === "string" && it.src.startsWith("data:");
+    if (isDataUrl) {
+      const { src, ...rest } = it;
+      return rest; // remove src
+    }
 
-  return it;
-});
+    return it;
+  });
 
   useEffect(() => {
     const tr = trRef.current;
@@ -489,43 +489,46 @@ export default function CanvasPage({
       startEditingText(item);
     }
   };
- const addImageFromFile = useCallback((file) => {
-  if (!file) return;
+  const addImageFromFile = useCallback(
+    (file) => {
+      if (!file) return;
 
-  const reader = new FileReader();
+      const reader = new FileReader();
 
-  reader.onload = () => {
-    const previewSrc = String(reader.result);
+      reader.onload = () => {
+        const previewSrc = String(reader.result);
 
-    const img = new window.Image();
-    img.onload = () => {
-      const id = crypto.randomUUID();
-      const clientImageId = crypto.randomUUID();
+        const img = new window.Image();
+        img.onload = () => {
+          const id = crypto.randomUUID();
+          const clientImageId = crypto.randomUUID();
 
-      const w = 200;
-      const h = Math.round((img.height / img.width) * w);
+          const w = 200;
+          const h = Math.round((img.height / img.width) * w);
 
-      const newItem = {
-        id,
-        type: "image",
-        x: -cam.x + 50,
-        y: -cam.y + 50,
-        w,
-        h,
-        src: previewSrc,        // for preview only
-        clientImageId,          // backend mapping
-        _file: file             // actual file to upload
+          const newItem = {
+            id,
+            type: "image",
+            x: -cam.x + 50,
+            y: -cam.y + 50,
+            w,
+            h,
+            src: previewSrc, // for preview only
+            clientImageId, // backend mapping
+            _file: file, // actual file to upload
+          };
+
+          setItems((prev) => [...prev, newItem]);
+          setSelectedId(id);
+        };
+
+        img.src = previewSrc;
       };
 
-      setItems((prev) => [...prev, newItem]);
-      setSelectedId(id);
-    };
-
-    img.src = previewSrc;
-  };
-
-  reader.readAsDataURL(file);
-}, [cam]);
+      reader.readAsDataURL(file);
+    },
+    [cam],
+  );
 
   const loadReqRef = useRef(0);
 
@@ -533,7 +536,6 @@ export default function CanvasPage({
     try {
       if (!memoryId) return;
 
-      // every load gets a new id
       const reqId = ++loadReqRef.current;
 
       const res = await fetch(
@@ -542,16 +544,29 @@ export default function CanvasPage({
       if (!res.ok) throw new Error("Load failed");
 
       const data = await res.json();
-      setTags(data.tags ?? []);
+      console.log("Loaded canvas:", data);
 
-      // if another load started after this one, ignore this result
       if (reqId !== loadReqRef.current) return;
 
-      setItems(data.items ?? []);
+      const BASE = "http://localhost:5000"; // backend origin
+
+      const mappedItems = (data.items ?? []).map((it) => {
+        if (it.type !== "image") return it;
+
+        const imageUrl =
+          it.imageUrl ??
+          it.src ??
+          (it.image ? `${BASE}/uploads/${it.image}` : undefined); // <- adjust /uploads if needed
+
+        return { ...it, imageUrl };
+      });
+
+      setTags(Array.isArray(data.tags) ? data.tags : []);
+      setItems(mappedItems);
       setCam(data.cam ?? { x: 0, y: 0 });
       setSelectedId(null);
 
-      setHistory([data.items ?? []]);
+      setHistory([mappedItems]);
       setHistoryIndex(0);
       setCanvasLoaded(true);
     } catch (err) {
@@ -562,7 +577,6 @@ export default function CanvasPage({
   useEffect(() => {
     setCanvasLoaded(false);
     loadCanvas();
-    console.log("memoryid: " + memoryId + "memory name: " + memoryName);
   }, [memoryId]);
 
   const addedOnceRef = useRef(false);
@@ -581,55 +595,53 @@ export default function CanvasPage({
     setUploadedFiles([]); // ✅ clear staged uploads
   }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
 
- async function saveCanvas() {
-  try {
-    const form = new FormData();
+  async function saveCanvas() {
+    try {
+      const form = new FormData();
 
-    form.append("memoryId", String(memoryId));
-    form.append("cam", JSON.stringify(cam));
-    form.append("tags", JSON.stringify(tags));
+      form.append("memoryId", String(memoryId));
+      form.append("cam", JSON.stringify(cam));
+      form.append("tags", JSON.stringify(tags));
 
-    // Remove large base64 strings before sending to backend
-    const cleanedItems = items.map((it) => {
-      if (it.type !== "image") return it;
+      // Remove large base64 strings before sending to backend
+      const cleanedItems = items.map((it) => {
+        if (it.type !== "image") return it;
 
-      const { _file, ...rest } = it;
+        const { _file, ...rest } = it;
 
-      // remove base64 src if present
-      if (typeof rest.src === "string" && rest.src.startsWith("data:")) {
-        delete rest.src;
-      }
+        // remove base64 src if present
+        if (typeof rest.src === "string" && rest.src.startsWith("data:")) {
+          delete rest.src;
+        }
 
-      return rest;
-    });
+        return rest;
+      });
 
-    form.append("items", JSON.stringify(cleanedItems));
+      form.append("items", JSON.stringify(cleanedItems));
 
-    // attach image files separately
-    items.forEach((it) => {
-      if (it.type === "image" && it._file && it.clientImageId) {
-        const f = new File(
-          [it._file],
-          it.clientImageId,
-          { type: it._file.type }
-        );
-        form.append("images", f);
-      }
-    });
+      // attach image files separately
+      items.forEach((it) => {
+        if (it.type === "image" && it._file && it.clientImageId) {
+          const f = new File([it._file], it.clientImageId, {
+            type: it._file.type,
+          });
+          form.append("images", f);
+        }
+      });
 
-    const res = await fetch("http://localhost:5000/api/canvas/save", {
-      method: "POST",
-      body: form,
-    });
+      const res = await fetch("http://localhost:5000/api/canvas/save", {
+        method: "POST",
+        body: form,
+      });
 
-    if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) throw new Error("Save failed");
 
-    const data = await res.json();
-    console.log("Saved:", data);
-  } catch (err) {
-    console.error(err);
+      const data = await res.json();
+      console.log("Saved:", data);
+    } catch (err) {
+      console.error(err);
+    }
   }
-}
 
   function screenToWorld(stage, clientX, clientY) {
     const rect = stage.container().getBoundingClientRect();
@@ -688,7 +700,9 @@ export default function CanvasPage({
         setTool={setTool}
         onSave={saveCanvas}
         setActiveTab={setActiveTab}
-        onPickFiles={(files) => files.forEach(addImageFromFile)}
+        onPickFiles={(files) =>
+          Array.from(files ?? []).forEach(addImageFromFile)
+        }
       />
 
       <div

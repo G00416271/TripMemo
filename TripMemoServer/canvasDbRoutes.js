@@ -30,7 +30,6 @@ function parseMemoryId(value) {
 function safeParseJson(value, fallback) {
   if (value == null) return fallback;
 
-  // ✅ MySQL can return JSON as Buffer
   if (Buffer.isBuffer(value)) {
     try {
       return JSON.parse(value.toString("utf8"));
@@ -73,32 +72,23 @@ function safeParseCanvas(raw) {
  * - memoryId: number
  * - items: JSON string (array)
  * - cam: JSON string (object)
- * - tags: JSON string (array)  <-- NEW
+ * - tags: JSON string (array)
  * - images: files[] (optional)
  */
 router.post("/save", upload.array("images"), async (req, res) => {
   try {
     const memoryId = parseMemoryId(req.body?.memoryId);
 
-    // items/cam/tags come as strings in multipart
     const items = safeParseJson(req.body?.items, []);
     const cam = safeParseJson(req.body?.cam, { x: 0, y: 0 });
     const tags = safeParseJson(req.body?.tags, []);
 
-    if (!memoryId) {
-      return res.status(400).json({ error: "memoryId required (number > 0)" });
-    }
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: "items must be an array" });
-    }
-    if (typeof cam !== "object" || cam == null) {
-      return res.status(400).json({ error: "cam must be an object" });
-    }
-    if (!Array.isArray(tags)) {
-      return res.status(400).json({ error: "tags must be an array" });
-    }
+    if (!memoryId) return res.status(400).json({ error: "memoryId required" });
+    if (!Array.isArray(items)) return res.status(400).json({ error: "items must be an array" });
+    if (typeof cam !== "object" || cam == null) return res.status(400).json({ error: "cam must be an object" });
+    if (!Array.isArray(tags)) return res.status(400).json({ error: "tags must be an array" });
 
-    // Upload images (if provided) and map them back onto items
+    // Upload images and map onto items by clientImageId
     if (req.files?.length) {
       const idToIndex = new Map();
       for (let i = 0; i < items.length; i++) {
@@ -122,7 +112,6 @@ router.post("/save", upload.array("images"), async (req, res) => {
         });
 
         items[idx].imageKey = key;
-        delete items[idx].imageData;
       }
     }
 
@@ -152,10 +141,7 @@ router.post("/save", upload.array("images"), async (req, res) => {
     res.json({ ok: true, memoryId });
   } catch (err) {
     console.error("canvas save error:", err);
-    res.status(500).json({
-      error: "Failed to save canvas",
-      details: err?.message ?? String(err),
-    });
+    res.status(500).json({ error: "Failed to save canvas", details: err?.message ?? String(err) });
   }
 });
 
@@ -163,10 +149,7 @@ router.post("/save", upload.array("images"), async (req, res) => {
 router.get("/load", async (req, res) => {
   try {
     const memoryId = parseMemoryId(req.query?.memoryId);
-
-    if (!memoryId) {
-      return res.status(400).json({ error: "memoryId required (number > 0)" });
-    }
+    if (!memoryId) return res.status(400).json({ error: "memoryId required" });
 
     const [rows] = await db.execute(
       `
@@ -180,20 +163,15 @@ router.get("/load", async (req, res) => {
       [memoryId],
     );
 
-    if (!rows.length) {
-      return res.status(404).json({ error: "Memory not found", memoryId });
-    }
+    if (!rows.length) return res.status(404).json({ error: "Memory not found", memoryId });
 
     const canvas = safeParseCanvas(rows[0].canvas);
     const tags = safeParseJson(rows[0].tags, []);
 
-    if (!canvas) {
-      return res.json({ items: [], cam: { x: 0, y: 0 }, tags });
-    }
+    if (!canvas) return res.json({ items: [], cam: { x: 0, y: 0 }, tags });
 
     const safeItems = Array.isArray(canvas.items) ? canvas.items : [];
-    const safeCam =
-      typeof canvas.cam === "object" && canvas.cam ? canvas.cam : { x: 0, y: 0 };
+    const safeCam = typeof canvas.cam === "object" && canvas.cam ? canvas.cam : { x: 0, y: 0 };
 
     for (const item of safeItems) {
       if (item?.imageKey && typeof item.imageKey === "string") {
@@ -209,10 +187,37 @@ router.get("/load", async (req, res) => {
     });
   } catch (err) {
     console.error("canvas load error:", err);
-    res.status(500).json({
-      error: "Failed to load canvas",
-      details: err?.message ?? String(err),
-    });
+    res.status(500).json({ error: "Failed to load canvas", details: err?.message ?? String(err) });
+  }
+});
+
+// DELETE /api/canvas/delete?memoryId=123
+router.delete("/delete", async (req, res) => {
+  try {
+    const memoryId = parseMemoryId(req.query?.memoryId);
+    if (!memoryId) return res.status(400).json({ error: "memoryId required" });
+
+    // remove canvas + reset tags
+    const [result] = await db.execute(
+      `
+      UPDATE memories
+      SET
+        elements = JSON_REMOVE(
+          IF(JSON_TYPE(elements) = 'OBJECT', elements, JSON_OBJECT()),
+          '$.canvas'
+        ),
+        tags = JSON_ARRAY()
+      WHERE memory_id = ?
+      `,
+      [memoryId],
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Memory not found", memoryId });
+
+    res.json({ ok: true, deleted: true, memoryId });
+  } catch (err) {
+    console.error("canvas delete error:", err);
+    res.status(500).json({ error: "Failed to delete canvas", details: err?.message ?? String(err) });
   }
 });
 
