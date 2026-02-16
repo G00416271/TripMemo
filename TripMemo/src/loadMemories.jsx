@@ -138,7 +138,7 @@ useEffect(() => {
     window.history.back();
   };
 
-const handleCardDoubleClick = async (memoryId, memoryTitle) => {
+const handleCardClick = async (memoryId, memoryTitle) => {
   setUploadedFiles([]); 
 
   setSelectedMemoryId(memoryId);
@@ -315,7 +315,7 @@ const handleCardDoubleClick = async (memoryId, memoryTitle) => {
           {memories.map((memory) => (
             <div
               key={memory.memory_id}
-              onDoubleClick={() => handleCardDoubleClick(memory.memory_id, memory.title)}
+              onClick={() => handleCardClick(memory.memory_id, memory.title)}
               className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer relative"
             >
               {/* Three dots menu button */}

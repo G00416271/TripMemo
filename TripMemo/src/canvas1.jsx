@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import Konva from "konva";
 import {
   Stage,
   Layer,
@@ -17,11 +18,12 @@ function CanvasImage({
   isSelected,
   tool,
   onSelect,
-  onDragEnd,
   nodeRef,
   onResize,
+  onSmoothDragEnd,
+  snap,              // ✅ add
 }) {
-  const [img] = useImage(it.src, "anonymous");
+  const [img] = useImage(it.imageUrl ?? it.src, "anonymous");
   if (!img) return null;
 
   return (
@@ -36,7 +38,7 @@ function CanvasImage({
       strokeWidth={isSelected ? 2 : 0}
       draggable={tool === "selection"}
       onMouseDown={onSelect}
-      onDragEnd={(e) => onDragEnd(it.id, { x: e.target.x(), y: e.target.y() })}
+      onDragEnd={(e) => onSmoothDragEnd(it.id, e.target)}
       onTransformEnd={(e) => {
         const node = e.target;
         const scaleX = node.scaleX();
@@ -45,10 +47,10 @@ function CanvasImage({
         node.scaleY(1);
 
         onResize(it.id, {
-          x: node.x(),
-          y: node.y(),
-          w: Math.max(5, node.width() * scaleX),
-          h: Math.max(5, node.height() * scaleY),
+          x: snap(node.x()),
+          y: snap(node.y()),
+          w: Math.max(5, snap(node.width() * scaleX)),
+          h: Math.max(5, snap(node.height() * scaleY)),
         });
       }}
     />
@@ -67,6 +69,31 @@ export default function CanvasPage({
 
   const viewW = "100vw";
   const viewH = "100vh";
+
+  const GRID = 20;
+
+  const snap = (v) => Math.round(v / GRID) * GRID;
+
+  const snapXY = (x, y) => ({ x: snap(x), y: snap(y) });
+
+  function tweenToSnap(node, onDone) {
+    const { x, y } = snapXY(node.x(), node.y());
+
+    // already snapped
+    if (x === node.x() && y === node.y()) {
+      onDone?.({ x, y });
+      return;
+    }
+
+    new Konva.Tween({
+      node,
+      duration: 0.12, // tweak for feel
+      x,
+      y,
+      easing: Konva.Easings.EaseOut,
+      onFinish: () => onDone?.({ x, y }),
+    }).play();
+  }
 
   // which tool is selected from your toolbox
   const [tool, setTool] = useState("selection");
@@ -92,6 +119,7 @@ export default function CanvasPage({
   // canvas items
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [tags, setTags] = useState([]);
 
   // drawing state
   const isDrawingRef = useRef(false);
@@ -124,6 +152,19 @@ export default function CanvasPage({
     },
     [historyIndex],
   );
+
+  const safeItems = items.map((it) => {
+  if (it.type !== "image") return it;
+
+  // if it's a base64 data url, DO NOT send it
+  const isDataUrl = typeof it.src === "string" && it.src.startsWith("data:");
+  if (isDataUrl) {
+    const { src, ...rest } = it;
+    return rest; // remove src
+  }
+
+  return it;
+});
 
   useEffect(() => {
     const tr = trRef.current;
@@ -448,47 +489,43 @@ export default function CanvasPage({
       startEditingText(item);
     }
   };
-  const addImageFromFile = useCallback(
-    (file) => {
-      if (!file) return;
+ const addImageFromFile = useCallback((file) => {
+  if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const src = String(reader.result);
+  const reader = new FileReader();
 
-        const img = new window.Image();
-        img.onload = () => {
-          const id = nextId();
-          const w = 200;
-          const h = Math.round((img.height / img.width) * w);
+  reader.onload = () => {
+    const previewSrc = String(reader.result);
 
-          const newItem = {
-            id,
-            type: "image",
-            x: -cam.x + 50,
-            y: -cam.y + 50,
-            w,
-            h,
-            src,
-          };
+    const img = new window.Image();
+    img.onload = () => {
+      const id = crypto.randomUUID();
+      const clientImageId = crypto.randomUUID();
 
-          // ✅ always append to the latest items
-          setItems((prev) => {
-            const next = [...prev, newItem];
-            addToHistory(next);
-            return next;
-          });
+      const w = 200;
+      const h = Math.round((img.height / img.width) * w);
 
-          setSelectedId(id);
-        };
-
-        img.src = src;
+      const newItem = {
+        id,
+        type: "image",
+        x: -cam.x + 50,
+        y: -cam.y + 50,
+        w,
+        h,
+        src: previewSrc,        // for preview only
+        clientImageId,          // backend mapping
+        _file: file             // actual file to upload
       };
 
-      reader.readAsDataURL(file);
-    },
-    [cam, addToHistory], // ✅ NO items, NO updateItems
-  );
+      setItems((prev) => [...prev, newItem]);
+      setSelectedId(id);
+    };
+
+    img.src = previewSrc;
+  };
+
+  reader.readAsDataURL(file);
+}, [cam]);
 
   const loadReqRef = useRef(0);
 
@@ -505,6 +542,7 @@ export default function CanvasPage({
       if (!res.ok) throw new Error("Load failed");
 
       const data = await res.json();
+      setTags(data.tags ?? []);
 
       // if another load started after this one, ignore this result
       if (reqId !== loadReqRef.current) return;
@@ -543,26 +581,55 @@ export default function CanvasPage({
     setUploadedFiles([]); // ✅ clear staged uploads
   }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
 
-  async function saveCanvas() {
-    try {
-      const res = await fetch("http://localhost:5000/api/canvas/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memoryId, // ✅ add this
-          items,
-          cam,
-          updatedAt: Date.now(),
-        }),
-      });
+ async function saveCanvas() {
+  try {
+    const form = new FormData();
 
-      if (!res.ok) throw new Error("Save failed");
-      const data = await res.json();
-      console.log("Saved:", data);
-    } catch (err) {
-      console.error(err);
-    }
+    form.append("memoryId", String(memoryId));
+    form.append("cam", JSON.stringify(cam));
+    form.append("tags", JSON.stringify(tags));
+
+    // Remove large base64 strings before sending to backend
+    const cleanedItems = items.map((it) => {
+      if (it.type !== "image") return it;
+
+      const { _file, ...rest } = it;
+
+      // remove base64 src if present
+      if (typeof rest.src === "string" && rest.src.startsWith("data:")) {
+        delete rest.src;
+      }
+
+      return rest;
+    });
+
+    form.append("items", JSON.stringify(cleanedItems));
+
+    // attach image files separately
+    items.forEach((it) => {
+      if (it.type === "image" && it._file && it.clientImageId) {
+        const f = new File(
+          [it._file],
+          it.clientImageId,
+          { type: it._file.type }
+        );
+        form.append("images", f);
+      }
+    });
+
+    const res = await fetch("http://localhost:5000/api/canvas/save", {
+      method: "POST",
+      body: form,
+    });
+
+    if (!res.ok) throw new Error("Save failed");
+
+    const data = await res.json();
+    console.log("Saved:", data);
+  } catch (err) {
+    console.error(err);
   }
+}
 
   function screenToWorld(stage, clientX, clientY) {
     const rect = stage.container().getBoundingClientRect();
@@ -703,7 +770,7 @@ export default function CanvasPage({
         style={{
           width: "100vw",
           height: "100vh",
-          border: "1px solid #cccccc86",
+          border: "1px solid #ffffff86",
           overflow: "hidden",
           userSelect: "none",
         }}
@@ -712,7 +779,7 @@ export default function CanvasPage({
           style={{
             width: "100vw",
             height: "100vh",
-            border: "1px solid #cccccc86",
+            border: "1px solid #ffffff86",
             overflow: "hidden",
             userSelect: "none",
           }}
@@ -734,180 +801,204 @@ export default function CanvasPage({
             addImageFromUrl(src, pos.x, pos.y);
           }}
         >
-        <Stage
-          ref={stageRef}
-          width={size.w}
-          height={size.h}
-          x={cam.x}
-          y={cam.y}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <Layer>
-            {tool === "selection" && (
-              <Transformer
-                ref={trRef}
-                keepRatio={
-                  items.find((i) => i.id === selectedId)?.type === "image"
-                }
-              />
-            )}
+          <Stage
+            ref={stageRef}
+            width={size.w}
+            height={size.h}
+            x={cam.x}
+            y={cam.y}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            <Layer>
+              {tool === "selection" && (
+                <Transformer
+                  ref={trRef}
+                  keepRatio={
+                    items.find((i) => i.id === selectedId)?.type === "image"
+                  }
+                />
+              )}
 
-            {items.map((it) => {
-              if (it.type === "rect") {
-                return (
-                  <Rect
-                    id={it.id}
-                    ref={(node) => (nodeRefs.current[it.id] = node)}
-                    key={it.id}
-                    x={it.x}
-                    y={it.y}
-                    width={it.w}
-                    height={it.h}
-                    fill="transparent"
-                    stroke={it.id === selectedId ? "dodgerblue" : "black"}
-                    strokeWidth={it.id === selectedId ? 2 : 1}
-                    draggable={tool === "selection"}
-                    onMouseDown={() => selectItem(it.id)}
-                    onDragEnd={(e) =>
-                      handleItemDragEnd(it.id, {
-                        x: e.target.x(),
-                        y: e.target.y(),
-                      })
-                    }
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      const scaleX = node.scaleX();
-                      const scaleY = node.scaleY();
-
-                      node.scaleX(1);
-                      node.scaleY(1);
-
-                      handleItemDragEnd(it.id, {
-                        x: node.x(),
-                        y: node.y(),
-                        w: Math.max(5, node.width() * scaleX),
-                        h: Math.max(5, node.height() * scaleY),
-                      });
-                    }}
-                  />
-                );
-              }
-
-              if (it.type === "line") {
-                return (
-                  <Line
-                    id={it.id}
-                    key={it.id}
-                    points={it.points}
-                    stroke="black"
-                    strokeWidth={3}
-                    draggable={tool === "selection"}
-                    onMouseDown={() => selectItem(it.id)}
-                    onDragEnd={(e) => {
-                      const [x1, y1, x2, y2] = it.points;
-                      const dx = e.target.x();
-                      const dy = e.target.y();
-                      handleItemDragEnd(it.id, {
-                        points: [x1 + dx, y1 + dy, x2 + dx, y2 + dy],
-                      });
-                      e.target.x(0);
-                      e.target.y(0);
-                    }}
-                  />
-                );
-              }
-
-              if (it.type === "pencil") {
-                return (
-                  <Line
-                    id={it.id}
-                    key={it.id}
-                    points={it.points}
-                    stroke="black"
-                    strokeWidth={3}
-                    lineCap="round"
-                    lineJoin="round"
-                    draggable={tool === "selection"}
-                    onMouseDown={() => selectItem(it.id)}
-                    onDragEnd={(e) => {
-                      const dx = e.target.x();
-                      const dy = e.target.y();
-                      const newPoints = [];
-                      for (let i = 0; i < it.points.length; i += 2) {
-                        newPoints.push(
-                          it.points[i] + dx,
-                          it.points[i + 1] + dy,
+              {items.map((it) => {
+                if (it.type === "rect") {
+                  return (
+                    <Rect
+                      id={it.id}
+                      ref={(node) => (nodeRefs.current[it.id] = node)}
+                      key={it.id}
+                      x={it.x}
+                      y={it.y}
+                      width={it.w}
+                      height={it.h}
+                      fill="transparent"
+                      stroke={it.id === selectedId ? "dodgerblue" : "black"}
+                      strokeWidth={it.id === selectedId ? 2 : 1}
+                      draggable={tool === "selection"}
+                      onMouseDown={() => selectItem(it.id)}
+                      onDragEnd={(e) => {
+                        const node = e.target;
+                        tweenToSnap(node, ({ x, y }) =>
+                          handleItemDragEnd(it.id, { x, y }),
                         );
+                      }}
+                      onTransformEnd={(e) => {
+                        const node = e.target;
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+
+                        node.scaleX(1);
+                        node.scaleY(1);
+
+                        const snapped = {
+                          x: snap(node.x()),
+                          y: snap(node.y()),
+                          w: Math.max(5, snap(node.width() * scaleX)),
+                          h: Math.max(5, snap(node.height() * scaleY)),
+                        };
+
+                        handleItemDragEnd(it.id, snapped);
+                      }}
+                    />
+                  );
+                }
+
+                if (it.type === "line") {
+                  return (
+                    <Line
+                      id={it.id}
+                      key={it.id}
+                      points={it.points}
+                      stroke="black"
+                      strokeWidth={3}
+                      draggable={tool === "selection"}
+                      onMouseDown={() => selectItem(it.id)}
+                      onDragEnd={(e) => {
+                        const node = e.target;
+                        const dx = node.x();
+                        const dy = node.y();
+
+                        const snappedPoints = it.points.map((v, i) =>
+                          i % 2 === 0 ? snap(v + dx) : snap(v + dy),
+                        );
+
+                        // animate node back to origin smoothly
+                        new Konva.Tween({
+                          node,
+                          duration: 0.12,
+                          x: 0,
+                          y: 0,
+                          easing: Konva.Easings.EaseOut,
+                          onFinish: () =>
+                            handleItemDragEnd(it.id, { points: snappedPoints }),
+                        }).play();
+                      }}
+                    />
+                  );
+                }
+
+                if (it.type === "pencil") {
+                  return (
+                    <Line
+                      id={it.id}
+                      key={it.id}
+                      points={it.points}
+                      stroke="black"
+                      strokeWidth={3}
+                      lineCap="round"
+                      lineJoin="round"
+                      draggable={tool === "selection"}
+                      onMouseDown={() => selectItem(it.id)}
+                      onDragEnd={(e) => {
+                        const node = e.target;
+                        const dx = node.x();
+                        const dy = node.y();
+
+                        const snappedPoints = it.points.map((v, i) =>
+                          i % 2 === 0 ? snap(v + dx) : snap(v + dy),
+                        );
+
+                        new Konva.Tween({
+                          node,
+                          duration: 0.12,
+                          x: 0,
+                          y: 0,
+                          easing: Konva.Easings.EaseOut,
+                          onFinish: () =>
+                            handleItemDragEnd(it.id, { points: snappedPoints }),
+                        }).play();
+                      }}
+                    />
+                  );
+                }
+
+                if (it.type === "text") {
+                  return (
+                    <Text
+                      id={it.id}
+                      ref={(node) => (nodeRefs.current[it.id] = node)}
+                      key={it.id}
+                      x={it.x}
+                      y={it.y}
+                      text={it.text}
+                      fontSize={it.fontSize ?? 24}
+                      fill="black"
+                      stroke={it.id === selectedId ? "dodgerblue" : undefined}
+                      strokeWidth={it.id === selectedId ? 1 : 0}
+                      draggable={tool === "selection"}
+                      onMouseDown={() => selectItem(it.id)}
+                      onDblClick={() => handleTextDoubleClick(it)}
+                      onDragEnd={(e) =>
+                        handleItemDragEnd(it.id, {
+                          x: e.target.x(),
+                          y: e.target.y(),
+                        })
                       }
-                      handleItemDragEnd(it.id, { points: newPoints });
-                      e.target.x(0);
-                      e.target.y(0);
-                    }}
-                  />
-                );
-              }
+                      onTransformEnd={(e) => {
+                        const node = e.target;
+                        const scaleY = node.scaleY();
 
-              if (it.type === "text") {
-                return (
-                  <Text
-                    id={it.id}
-                    ref={(node) => (nodeRefs.current[it.id] = node)}
-                    key={it.id}
-                    x={it.x}
-                    y={it.y}
-                    text={it.text}
-                    fontSize={it.fontSize ?? 24}
-                    fill="black"
-                    stroke={it.id === selectedId ? "dodgerblue" : undefined}
-                    strokeWidth={it.id === selectedId ? 1 : 0}
-                    draggable={tool === "selection"}
-                    onMouseDown={() => selectItem(it.id)}
-                    onDblClick={() => handleTextDoubleClick(it)}
-                    onDragEnd={(e) =>
-                      handleItemDragEnd(it.id, {
-                        x: e.target.x(),
-                        y: e.target.y(),
-                      })
-                    }
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      const scaleY = node.scaleY();
+                        node.scaleX(1);
+                        node.scaleY(1);
 
-                      node.scaleX(1);
-                      node.scaleY(1);
+                        handleItemDragEnd(it.id, {
+                          x: snap(node.x()),
+                          y: snap(node.y()),
+                          fontSize: Math.max(
+                            8,
+                            snap((it.fontSize ?? 24) * scaleY),
+                          ),
+                        });
+                      }}
+                    />
+                  );
+                }
+                if (it.type === "image") {
+                  return (
+                    <CanvasImage
+                      key={it.id}
+                      it={it}
+                      isSelected={it.id === selectedId}
+                      tool={tool}
+                      onSelect={() => selectItem(it.id)}
+                      onSmoothDragEnd={(id, node) => {
+                        tweenToSnap(node, ({ x, y }) =>
+                          handleItemDragEnd(id, { x, y }),
+                        );
+                      }}
+                      onResize={handleItemDragEnd}
+                      nodeRef={(node) => (nodeRefs.current[it.id] = node)}
+                      snap={snap}
+                    />
+                  );
+                }
 
-                      handleItemDragEnd(it.id, {
-                        x: node.x(),
-                        y: node.y(),
-                        fontSize: Math.max(8, (it.fontSize ?? 24) * scaleY),
-                      });
-                    }}
-                  />
-                );
-              }
-              if (it.type === "image") {
-                return (
-                  <CanvasImage
-                    id={it.id}
-                    key={it.id}
-                    it={it}
-                    isSelected={it.id === selectedId}
-                    tool={tool}
-                    onSelect={() => selectItem(it.id)}
-                    onDragEnd={handleItemDragEnd}
-                    onResize={handleItemDragEnd}
-                    nodeRef={(node) => (nodeRefs.current[it.id] = node)}
-                  />
-                );
-              }
-
-              return null;
-            })}
-          </Layer>
-        </Stage>
+                return null;
+              })}
+            </Layer>
+          </Stage>
         </div>
       </div>
     </div>

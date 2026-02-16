@@ -233,7 +233,7 @@ export default function BottomDrawer({ serverData }) {
                 flex: 1,
               }}
             >
-              {assets.length === 0 && <p style={{ color: "#666" }}>loading…</p>}
+              {assets.length === 0 && <p style={{ color: "red" }}>loading…</p>}
 
               {assets.map((img) => (
                 <img
