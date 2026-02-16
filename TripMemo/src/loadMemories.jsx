@@ -23,29 +23,25 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
   
 
 
-  const DBentry = async (user_id, mn) => {
-    const fd = new FormData();
-    fd.append("action", "create");
-    fd.append("user_id", user_id);
-    fd.append("title", mn);
-    
-    fetch("http://localhost:5000/memories", {
-        method: "POST",
-        body: fd,
-        })
-        .then((res) => res.json())
-        .then((data) => {
-        //console.log("Memory created:", data);
-        })
-        .catch((err) => {
-        console.error("Error:", err);
-        });
-  };
+const DBentry = async (user_id, mn) => {
+  const fd = new FormData();
+  fd.append("action", "create");
+  fd.append("user_id", String(user_id));
+  fd.append("title", mn);
 
+  const res = await fetch("http://localhost:5000/memories", {
+    method: "POST",
+    body: fd,
+  });
+
+  if (!res.ok) throw new Error("Create failed");
+  return res.json(); // ✅ this must return { ok:true, memory:{...} }
+};
 const DBdelete = async (memory_id) => {
   const fd = new FormData();
   fd.append("action", "delete");
   fd.append("memory_id", String(memory_id));
+  fd.append("user_id", String(user.user_id)); // ✅ add this
 
   const res = await fetch("http://localhost:5000/memories", {
     method: "POST",
@@ -98,22 +94,26 @@ useEffect(() => {
     setShowForm(true);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (memoryName.trim()) {
-      const newMemory = {
-        memory_id: memories.length + 1,
-        title: memoryName,
-        thumbnail: "",
-      };
-      setMemories([...memories, newMemory]);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const title = memoryName.trim();
+  if (!title) return;
+
+  try {
+    const created = await DBentry(user.user_id, title);
+
+    if (created?.memory) {
+      setMemories((prev) => [...prev, created.memory]); // ✅ real id
       setMemoryName("");
       setShowForm(false);
-      DBentry(user.user_id, memoryName);
-
+    } else {
+      console.error("Backend didn't return memory:", created);
     }
-  };
-
+  } catch (err) {
+    console.error(err);
+  }
+};
   const toggleMenu = (memoryId, e) => {
     e.stopPropagation();
     setActiveMenu(activeMenu === memoryId ? null : memoryId);

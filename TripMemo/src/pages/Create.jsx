@@ -6,6 +6,7 @@ import { useState } from "react";
 import React from "react";
 import "./Create.css";
 
+
 document.oncontextmenu = () => false;
 
 export default function Create({
@@ -17,6 +18,7 @@ export default function Create({
   setUploadedFiles,
 }) {
   const [page, setPage] = useState("main");
+  const [tags, setTags] = useState([]);
 
   return (
     <>
@@ -37,12 +39,13 @@ export default function Create({
             uploadedFiles={uploadedFiles}
             serverData={serverData}
             setUploadedFiles={setUploadedFiles} 
+            setMemoryTags={setTags}
           />
         </div>
 
         {/* where images from the tags are stored */}
         <div>
-          <BottomDrawer serverData={serverData} />
+          <BottomDrawer serverData={serverData} memoryTags={tags} />
         </div>
       </div>
     </>

@@ -63,7 +63,9 @@ export default function CanvasPage({
   setActiveTab,
   uploadedFiles,
   setUploadedFiles,
+  setMemoryTags,
 }) {
+
   const trRef = useRef(null);
   const nodeRefs = useRef({}); // stores refs for each item by id
 
@@ -533,51 +535,45 @@ export default function CanvasPage({
   const loadReqRef = useRef(0);
 
   async function loadCanvas() {
-    try {
-      if (!memoryId) return;
+  try {
+    if (!memoryId) return;
 
-      const reqId = ++loadReqRef.current;
+    const reqId = ++loadReqRef.current;
 
-      const res = await fetch(
-        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
-      );
-      if (!res.ok) throw new Error("Load failed");
+    const res = await fetch(
+      `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`
+    );
+    if (!res.ok) throw new Error("Load failed");
 
-      const data = await res.json();
-      console.log("Loaded canvas:", data);
+    const data = await res.json();
+    if (reqId !== loadReqRef.current) return;
 
-      if (reqId !== loadReqRef.current) return;
+    const loadedTags = Array.isArray(data.tags) ? data.tags : [];
+    setTags(loadedTags);
+    setMemoryTags?.(loadedTags);
 
-      const BASE = "http://localhost:5000"; // backend origin
+    setItems(data.items ?? []);
+    setCam(data.cam ?? { x: 0, y: 0 });
+    setSelectedId(null);
 
-      const mappedItems = (data.items ?? []).map((it) => {
-        if (it.type !== "image") return it;
-
-        const imageUrl =
-          it.imageUrl ??
-          it.src ??
-          (it.image ? `${BASE}/uploads/${it.image}` : undefined); // <- adjust /uploads if needed
-
-        return { ...it, imageUrl };
-      });
-
-      setTags(Array.isArray(data.tags) ? data.tags : []);
-      setItems(mappedItems);
-      setCam(data.cam ?? { x: 0, y: 0 });
-      setSelectedId(null);
-
-      setHistory([mappedItems]);
-      setHistoryIndex(0);
-      setCanvasLoaded(true);
-    } catch (err) {
-      console.error(err);
-    }
+    setHistory([data.items ?? []]);
+    setHistoryIndex(0);
+    setCanvasLoaded(true);
+  } catch (err) {
+    console.error(err);
   }
+}
 
-  useEffect(() => {
-    setCanvasLoaded(false);
-    loadCanvas();
-  }, [memoryId]);
+useEffect(() => {
+  setCanvasLoaded(false);
+  setTags([]);
+  setMemoryTags?.([]);   // ✅ here
+  setItems([]);
+  setSelectedId(null);
+  setCam({ x: 0, y: 0 });
+
+  loadCanvas();
+}, [memoryId]);
 
   const addedOnceRef = useRef(false);
   useEffect(() => {

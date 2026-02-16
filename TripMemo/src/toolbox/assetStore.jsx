@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import ImagePreview from "./imagePreview";
 
-export default function BottomDrawer({ serverData }) {
+export default function BottomDrawer({ serverData, memoryTags = [] }) {
   const [tab, setTab] = useState("assets");
   const [assets, setAssets] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -15,9 +15,12 @@ export default function BottomDrawer({ serverData }) {
   const PIXABAY_API_KEY = "53481167-b261e4a8fd5c85523c6b9b422";
 
   const tags = useMemo(() => {
+    // ✅ 1) use tags saved on this memory
+    if (Array.isArray(memoryTags) && memoryTags.length > 0) return memoryTags;
+
+    // ✅ 2) fallback to serverData (CLIP)
     if (!serverData) return [];
 
-    // New format: { main: [...], sub: ["artwork:abstract_art", ...] }
     if (Array.isArray(serverData.sub) && serverData.sub.length > 0) {
       return serverData.sub
         .map((s) => {
@@ -34,7 +37,7 @@ export default function BottomDrawer({ serverData }) {
     }
 
     return [];
-  }, [serverData]);
+  }, [memoryTags, serverData]);
 
   // keep query reasonable (Pixabay likes shorter queries)
   const query = useMemo(() => tags.slice(0, 5).join(" "), [tags]);
