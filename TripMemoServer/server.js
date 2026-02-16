@@ -171,20 +171,28 @@ const upload = multer({
 // });
 app.post("/process-images", upload.array("files"), async (req, res) => {
   try {
+    // 1. Check if files were uploaded
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    // stage expects an array, so pass req.files directly
+    // 2. Stage the images
     const stagedImages = await stage(req.files);
 
-    // build payload per image (match stagedImages order)
+    // 3. Check if staging returned anything
+    if (!stagedImages || stagedImages.length === 0) {
+      return res.status(400).json({ error: "No images were staged" });
+    }
+    
+
+    // 4. Build payload
     const payload = stagedImages.map((img, i) => ({
       name: req.files[i]?.originalname || `image_${i}.jpg`,
       data: img.buffer.toString("base64"),
     }));
 
     const clipAnalysis = await clipAnalyse(payload);
+    console.log(clipAnalysis);
     return res.json(clipAnalysis);
 
   } catch (err) {
@@ -192,6 +200,7 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
     res.status(500).json({ error: "Processing failed" });
   }
 });
+
 
 
 

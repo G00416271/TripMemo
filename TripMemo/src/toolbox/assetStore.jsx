@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo  } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ImagePreview from "./imagePreview";
 
 export default function BottomDrawer({ serverData }) {
@@ -9,23 +9,40 @@ export default function BottomDrawer({ serverData }) {
   const [drawerHeight, setDrawerHeight] = useState(60);
   const [dragging, setDragging] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 15;
+
   const PIXABAY_API_KEY = "53481167-b261e4a8fd5c85523c6b9b422";
-const tags = useMemo(() => {
-  if (!serverData) return [];
 
-  // backend returns ["a","b"]
-  if (Array.isArray(serverData)) return serverData;
+  const tags = useMemo(() => {
+    if (!serverData) return [];
 
-  // backend returns { clipAnalysis: ["a","b"] }
-  if (Array.isArray(serverData.clipAnalysis)) return serverData.clipAnalysis;
+    // New format: { main: [...], sub: ["artwork:abstract_art", ...] }
+    if (Array.isArray(serverData.sub) && serverData.sub.length > 0) {
+      return serverData.sub
+        .map((s) => {
+          if (typeof s !== "string") return null;
+          const parts = s.split(":");
+          const raw = parts[1] ?? parts[0];
+          return raw.replace(/_/g, " ").trim();
+        })
+        .filter(Boolean);
+    }
 
-  return (
-    serverData.tags ||
-    serverData.inputTags ||
-    serverData.matchedUserInterests?.inputTags ||
-    []
-  );
-}, [serverData]);
+    if (Array.isArray(serverData.main) && serverData.main.length > 0) {
+      return serverData.main;
+    }
+
+    return [];
+  }, [serverData]);
+
+  // keep query reasonable (Pixabay likes shorter queries)
+  const query = useMemo(() => tags.slice(0, 5).join(" "), [tags]);
+
+  // reset to page 1 when query changes
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   // --- drag logic ---
   const startDrag = () => setDragging(true);
@@ -50,24 +67,26 @@ const tags = useMemo(() => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
-  }, [dragging]); // ✅ don’t re-add listeners every render
+  }, [dragging]);
 
-  // --- fetch images ---
+  // --- fetch images (paged) ---
   useEffect(() => {
-    if (!PIXABAY_API_KEY || tags.length === 0) return;
+    if (!PIXABAY_API_KEY || !query) return;
 
     const fetchImages = async () => {
       try {
-        const requests = tags.map((tag) =>
-          fetch(
-            `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(
-              tag
-            )}&image_type=photo&per_page=15&safesearch=true`
-          ).then((r) => r.json())
+        setAssets([]); // loading…
+
+        const res = await fetch(
+          `https://pixabay.com/api/?key=${PIXABAY_API_KEY}` +
+            `&q=${encodeURIComponent(query)}` +
+            `&image_type=photo&per_page=${PER_PAGE}` +
+            `&page=${page}` +
+            `&safesearch=true`
         );
 
-        const results = await Promise.all(requests);
-        setAssets(results.flatMap((r) => r?.hits || []));
+        const data = await res.json();
+        setAssets(data?.hits || []);
       } catch (err) {
         console.error("Pixabay fetch failed:", err);
         setAssets([]);
@@ -75,8 +94,7 @@ const tags = useMemo(() => {
     };
 
     fetchImages();
-  }, [tags, PIXABAY_API_KEY]);
-
+  }, [query, page, PIXABAY_API_KEY]);
 
   return (
     <>
@@ -128,7 +146,8 @@ const tags = useMemo(() => {
             style={{
               flex: 1,
               padding: 10,
-              background: tab === "assets" ? "rgba(26, 1, 255, 0.15)" : "transparent",
+              background:
+                tab === "assets" ? "rgba(26, 1, 255, 0.15)" : "transparent",
               color: "#222",
               border: "none",
               fontWeight: "600",
@@ -142,7 +161,8 @@ const tags = useMemo(() => {
             style={{
               flex: 1,
               padding: 10,
-              background: tab === "widgets" ? "rgba(26, 1, 255, 0.15)" : "transparent",
+              background:
+                tab === "widgets" ? "rgba(26, 1, 255, 0.15)" : "transparent",
               color: "#222",
               border: "none",
               fontWeight: "600",
@@ -152,46 +172,98 @@ const tags = useMemo(() => {
           </button>
         </div>
 
-        {/* grid */}
+        {/* content */}
         {tab === "assets" && (
           <div
             style={{
-              padding: 10,
               display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              justifyContent: "center",
-              overflowY: "auto",
+              flexDirection: "column",
               height: "calc(100% - 95px)",
               background: "#7b7bffff",
             }}
           >
-            {assets.length === 0 && <p style={{ color: "#666" }}>loading…</p>}
-
-            {assets.map((img) => (
-              <img
-                key={img.id}
-                src={img.webformatURL}
-                loading="lazy"
-                onClick={() => setSelectedImage(img)}
+            {/* pagination bar */}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "center",
+                alignItems: "center",
+                padding: 10,
+                background: "rgba(255,255,255,0.9)",
+                borderBottom: "1px solid rgba(0,0,0,0.1)",
+              }}
+            >
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
                 style={{
-                  width: 270,
-                  height: 210,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                  cursor: "pointer",
-                  boxShadow: "0 3px 10px rgba(0,0,0,0.15)",
-                  border: "3px solid rgba(26, 1, 255, 0.15)",
-                  transition: "0.2s",
+                  padding: "6px 12px",
+                  cursor: page === 1 ? "not-allowed" : "pointer",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.border = "3px solid rgba(26, 1, 255, 0.5)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.border = "3px solid rgba(26, 1, 255, 0.15)")
-                }
-              />
-            ))}
+              >
+                Prev
+              </button>
+
+              <div style={{ padding: "6px 12px", fontWeight: 600 }}>
+                Page {page}
+              </div>
+
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={assets.length < PER_PAGE}
+                style={{
+                  padding: "6px 12px",
+                  cursor: assets.length < PER_PAGE ? "not-allowed" : "pointer",
+                }}
+              >
+                Next
+              </button>
+            </div>
+
+            {/* image grid */}
+            <div
+              style={{
+                padding: 10,
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                overflowY: "auto",
+                flex: 1,
+              }}
+            >
+              {assets.length === 0 && (
+                <p style={{ color: "#666" }}>loading…</p>
+              )}
+
+              {assets.map((img) => (
+                <img
+                  key={img.id}
+                  src={img.webformatURL}
+                  loading="lazy"
+                  onClick={() => setSelectedImage(img)}
+                  style={{
+                    width: 270,
+                    height: 210,
+                    borderRadius: 8,
+                    objectFit: "cover",
+                    cursor: "pointer",
+                    boxShadow: "0 3px 10px rgba(0,0,0,0.15)",
+                    border: "3px solid rgba(26, 1, 255, 0.15)",
+                    transition: "0.2s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.border =
+                      "3px solid rgba(26, 1, 255, 0.5)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.border =
+                      "3px solid rgba(26, 1, 255, 0.15)")
+                  }
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -1,69 +1,128 @@
 {
-  "galway": [
-    "drawing",
-    "eyre square",
-    "spanish arch",
-    "salthill",
-    "quay street",
-    "nuig",
-    "corrib",
-    "shop street",
-    "claddagh",
-    "latin quarter",
-    "taylors hill",
-    "blackrock",
-    "salt hill prom",
-    "galway bay",
-    "aran islands",
-    "connemara",
-    "garda station",
-    "st nicholas market",
-    "tigh neachtain",
-    "roisín dubh",
-    "monroe's",
-    "buskers",
-    "silverbirch",
-    "uchg",
-    "westend",
-    "citylink",
-    "salt hill hotel",
-    "the g hotel",
-    "galway races",
-    "ballybane",
-    "menlo castle",
-    "maree",
-    "oughterard",
-    "barna",
-    "moycullen",
-    "tuam road",
-    "headford road",
-    "galway cathedral",
-    "university road",
-    "the docks",
-    "quays bar",
-    "king's head",
-    "tig cóilí",
-    "corrib village",
-    "woodquay",
-    "prospect hill",
-    "electric nightclub",
-    "eyre square centre",
-    "merchants road",
-    "lough atalía",
-    "bohanna",
-    "atu",
-    "atlantic technological university",
-    "nuns island",
-    "renmore",
-    "cluain mór",
-    "bearna",
-    "salthill promenade",
-    "black hoodie",
-    "ug",
-    "university of galway",
-    "glasán"
+  "objects": [
+    "furniture", "appliances", "tools", "electronics", "toys",
+    "kitchenware", "stationery", "containers", "decor",
+    "lighting", "hardware", "gadgets", "instruments",
+    "cleaning_items", "bathroom_items", "office_items",
+    "garden_items", "storage_items", "accessories", "supplies"
   ],
-
-  "athlone": ["athlone town", "shannon", "athlone castle"],
-  "dublin": ["temple bar", "trinity college", "grafton street"]
+  "landmarks": [
+    "monuments", "bridges", "towers", "statues", "temples",
+    "churches", "mosques", "palaces", "castles",
+    "museums", "memorials", "parks", "squares",
+    "skyscrapers", "stadiums", "forts", "ruins",
+    "historic_buildings", "government_buildings", "natural_landmarks"
+  ],
+  "people": [
+    "actors", "musicians", "athletes", "politicians", "scientists",
+    "authors", "entrepreneurs", "influencers", "historical_figures",
+    "artists", "directors", "comedians", "models",
+    "chefs", "royalty", "activists", "explorers",
+    "inventors", "philosophers", "educators"
+  ],
+  "person": [
+    "man", "woman", "child", "teenager", "adult",
+    "elderly", "baby", "doctor", "teacher",
+    "student", "police_officer", "firefighter", "engineer",
+    "nurse", "chef", "artist", "driver",
+    "farmer", "soldier", "athlete"
+  ],
+  "nature": [
+    "mountains", "rivers", "oceans", "forests", "deserts",
+    "waterfalls", "lakes", "islands", "volcanoes",
+    "canyons", "glaciers", "beaches", "jungles",
+    "valleys", "plains", "reefs", "caves",
+    "wetlands", "hills", "cliffs"
+  ],
+  "food": [
+    "fruits", "vegetables", "meat", "seafood", "desserts",
+    "fast_food", "snacks", "beverages", "grains",
+    "dairy", "soups", "salads", "pasta",
+    "rice_dishes", "bread", "street_food", "sauces",
+    "breakfast_food", "frozen_food", "organic_food"
+  ],
+  "animals": [
+    "mammals", "birds", "reptiles", "amphibians", "fish",
+    "insects", "marine_animals", "wild_animals", "farm_animals",
+    "endangered_species", "predators", "herbivores", "omnivores",
+    "primates", "big_cats", "rodents", "canines",
+    "felines", "hoofed_animals", "nocturnal_animals"
+  ],
+  "pets": [
+    "dogs", "cats", "birds", "fish", "hamsters",
+    "rabbits", "turtles", "snakes", "lizards",
+    "guinea_pigs", "ferrets", "parrots", "goldfish",
+    "betta_fish", "canaries", "gerbils", "hedgehogs",
+    "tarantulas", "chinchillas", "mini_pigs"
+  ],
+  "vehicles": [
+    "cars", "motorcycles", "bicycles", "trucks", "buses",
+    "trains", "airplanes", "helicopters", "boats",
+    "ships", "submarines", "scooters", "vans",
+    "tractors", "ambulances", "fire_trucks", "taxis",
+    "electric_vehicles", "race_cars", "skateboards"
+  ],
+  "clothing": [
+    "shirts", "pants", "dresses", "skirts", "jackets",
+    "coats", "suits", "shorts", "sweaters",
+    "hoodies", "jeans", "tshirts", "blouses",
+    "uniforms", "sportswear", "swimwear", "sleepwear",
+    "underwear", "footwear", "accessories"
+  ],
+  "sports": [
+    "football", "basketball", "baseball", "tennis", "cricket",
+    "rugby", "golf", "swimming", "boxing",
+    "martial_arts", "cycling", "running", "skiing",
+    "snowboarding", "skateboarding", "gymnastics", "volleyball",
+    "hockey", "badminton", "table_tennis"
+  ],
+  "technology": [
+    "smartphones", "laptops", "tablets", "wearables", "gaming_consoles",
+    "smart_home_devices", "drones", "robots", "ai_tools",
+    "virtual_reality", "augmented_reality", "blockchain", "cloud_computing",
+    "cybersecurity", "software", "hardware", "databases",
+    "networks", "iot_devices", "electric_gadgets"
+  ],
+  "venue": [
+    "restaurants", "cafes", "bars", "clubs", "theaters",
+    "cinemas", "stadiums", "arenas", "conference_centers",
+    "hotels", "resorts", "malls", "gyms",
+    "libraries", "schools", "universities", "parks",
+    "museums", "galleries", "banquet_halls"
+  ],
+  "city": [
+    "capital_cities", "coastal_cities", "tourist_cities", "industrial_cities", "historic_cities",
+    "port_cities", "metropolitan_cities", "smart_cities", "ancient_cities",
+    "planned_cities", "mountain_cities", "island_cities", "desert_cities",
+    "river_cities", "financial_centers", "tech_hubs", "university_cities",
+    "religious_cities", "festival_cities", "mega_cities"
+  ],
+  "artwork": [
+    "paintings", "sculptures", "murals", "drawings", "photographs",
+    "digital_art", "illustrations", "prints", "installations",
+    "ceramics", "textile_art", "street_art", "graffiti",
+    "calligraphy", "collages", "animations", "concept_art",
+    "portraits", "landscape_art", "abstract_art"
+  ],
+  "pub": [
+    "sports_pubs", "irish_pubs", "gastropubs", "brewpubs", "wine_bars",
+    "cocktail_bars", "rooftop_pubs", "historic_pubs", "karaoke_pubs",
+    "student_pubs", "live_music_pubs", "microbrewery_pubs", "lounge_bars",
+    "craft_beer_pubs", "traditional_pubs", "theme_pubs", "riverside_pubs",
+    "underground_pubs", "neighborhood_pubs", "tourist_pubs"
+  ],
+  "nightclub": [
+    "dance_clubs", "edm_clubs", "hiphop_clubs", "latin_clubs", "jazz_clubs",
+    "vip_clubs", "rooftop_clubs", "underground_clubs", "beach_clubs",
+    "student_clubs", "lgbtq_clubs", "live_dj_clubs", "after_hours_clubs",
+    "luxury_clubs", "theme_clubs", "karaoke_clubs", "indoor_clubs",
+    "outdoor_clubs", "festival_clubs", "resort_clubs"
+  ],
+  "drink": [
+    "soft_drinks", "cocktails", "mocktails", "beer", "wine",
+    "spirits", "juices", "smoothies", "tea",
+    "coffee", "energy_drinks", "milkshakes", "protein_shakes",
+    "herbal_drinks", "sodas", "sparkling_water", "iced_drinks",
+    "hot_drinks", "traditional_drinks", "alcohol_free_drinks"
+  ]
 }

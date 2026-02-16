@@ -52,7 +52,7 @@ export default function UploadFiles({
           } catch {
             return { fileName: f.name, error: "No EXIF or unreadable" };
           }
-        })
+        }),
       );
       setMetadataList(metas);
       console.log(metas);
@@ -89,10 +89,9 @@ export default function UploadFiles({
       }
 
       const data = await res.json();
-setStatus("Upload complete");
-onFilesReady?.(files);     // ✅ send files to App
-onUploadComplete?.(data);  // ✅ send server response to App
-
+      setStatus("Upload complete");
+      onFilesReady?.(files); // ✅ send files to App
+      onUploadComplete?.(data); // ✅ send server response to App
 
       //files.forEach((f) => onAddToCanvas?.(f));
     } catch (err) {
