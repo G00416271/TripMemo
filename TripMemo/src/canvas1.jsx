@@ -21,7 +21,7 @@ function CanvasImage({
   nodeRef,
   onResize,
   onSmoothDragEnd,
-  snap, // ✅ add
+  snap,
 }) {
   const [img] = useImage(it.imageUrl ?? it.src, "anonymous");
   if (!img) return null;
@@ -566,8 +566,6 @@ export default function CanvasPage({
 
 useEffect(() => {
   setCanvasLoaded(false);
-  setTags([]);
-  setMemoryTags?.([]);   // ✅ here
   setItems([]);
   setSelectedId(null);
   setCam({ x: 0, y: 0 });

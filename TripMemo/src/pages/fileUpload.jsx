@@ -8,10 +8,11 @@ export default function FileUpload({
   memoryName,
   onFilesReady,
   onUploadComplete,
+  setActiveTab,
 }) {
   return (
     <div id="navbar" style={{ display: "flex", padding: 0 }}>
-      <NavBar />
+      <NavBar setActiveTab={setActiveTab} />
       <div style={{ display: "flex", padding: 10 }}>
         <UploadFiles
           memoryId={memoryId}

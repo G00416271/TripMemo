@@ -176,7 +176,7 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
     }));
 
     const clipAnalysis = await clipAnalyse(payload);
-    console.log(clipAnalysis);
+    //console.log(clipAnalysis);
     return res.json(clipAnalysis);
   } catch (err) {
     console.error(err);

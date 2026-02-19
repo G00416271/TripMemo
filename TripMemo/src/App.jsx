@@ -42,7 +42,7 @@ import SOSPage from "./SOSPage";
 
 // import editor components
 import UploadFiles from "./uploadFiles.jsx";
-import Create from "./pages/create.jsx";
+import Create from "./pages/Create.jsx";
 import Memories from "./loadMemories.jsx";
 
 const scrapbooks = [
@@ -384,6 +384,7 @@ function App() {
             memoryId={selectedMemoryId}
             memoryName={SelectedMemoryName}
             onFilesReady={(files) => setUploadedFiles(files)}
+            setActiveTab={setActiveTab}
             onUploadComplete={(data) => {
               setServerData(data);
               setActiveTab("canvas");

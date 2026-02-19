@@ -82,12 +82,13 @@ router.post("/save", upload.array("images"), async (req, res) => {
     const items = safeParseJson(req.body?.items, []);
     const cam = safeParseJson(req.body?.cam, { x: 0, y: 0 });
     const tags = safeParseJson(req.body?.tags, []);
-
     if (!memoryId) return res.status(400).json({ error: "memoryId required" });
     if (!Array.isArray(items)) return res.status(400).json({ error: "items must be an array" });
     if (typeof cam !== "object" || cam == null) return res.status(400).json({ error: "cam must be an object" });
     if (!Array.isArray(tags)) return res.status(400).json({ error: "tags must be an array" });
-
+    
+    console.log("memoryId:", memoryId);
+    console.log("tags from client:", tags);
     // Upload images and map onto items by clientImageId
     if (req.files?.length) {
       const idToIndex = new Map();
