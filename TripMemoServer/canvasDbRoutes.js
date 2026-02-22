@@ -3,7 +3,7 @@ import express from "express";
 import db from "./db.js";
 import multer from "multer";
 import crypto from "crypto";
-import { uploadToR2, generateSignedUrl } from "./r2.js";
+import { uploadToR2, generateSignedUrl, deleteFromR2 } from "./r2.js";
 
 function extFromMime(mime) {
   if (mime === "image/jpeg") return ".jpg";
@@ -81,12 +81,30 @@ router.post("/save", upload.array("images"), async (req, res) => {
 
     const items = safeParseJson(req.body?.items, []);
     const cam = safeParseJson(req.body?.cam, { x: 0, y: 0 });
-    const tags = safeParseJson(req.body?.tags, []);
-    if (!memoryId) return res.status(400).json({ error: "memoryId required" });
-    if (!Array.isArray(items)) return res.status(400).json({ error: "items must be an array" });
-    if (typeof cam !== "object" || cam == null) return res.status(400).json({ error: "cam must be an object" });
-    if (!Array.isArray(tags)) return res.status(400).json({ error: "tags must be an array" });
-    
+    // tags can be: ["volleyball", ...]  OR legacy {main,sub,third}
+    const tagsRaw = safeParseJson(req.body?.tags, []);
+    let tags = [];
+
+    if (Array.isArray(tagsRaw)) {
+      tags = tagsRaw;
+    } else if (tagsRaw && typeof tagsRaw === "object") {
+      const main = Array.isArray(tagsRaw.main) ? tagsRaw.main : [];
+      const sub = Array.isArray(tagsRaw.sub) ? tagsRaw.sub : [];
+      const third = Array.isArray(tagsRaw.third) ? tagsRaw.third : [];
+      tags = [...main, ...sub, ...third];
+    } else {
+      return res.status(400).json({ error: "tags must be an array" });
+    }
+
+    // clean + dedupe + ensure strings
+    tags = [
+      ...new Set(
+        tags
+          .filter((t) => typeof t === "string" && t.trim())
+          .map((t) => t.trim()),
+      ),
+    ];
+
     console.log("memoryId:", memoryId);
     console.log("tags from client:", tags);
     // Upload images and map onto items by clientImageId
@@ -142,7 +160,10 @@ router.post("/save", upload.array("images"), async (req, res) => {
     res.json({ ok: true, memoryId });
   } catch (err) {
     console.error("canvas save error:", err);
-    res.status(500).json({ error: "Failed to save canvas", details: err?.message ?? String(err) });
+    res.status(500).json({
+      error: "Failed to save canvas",
+      details: err?.message ?? String(err),
+    });
   }
 });
 
@@ -164,16 +185,32 @@ router.get("/load", async (req, res) => {
       [memoryId],
     );
 
-    if (!rows.length) return res.status(404).json({ error: "Memory not found", memoryId });
+    if (!rows.length)
+      return res.status(404).json({ error: "Memory not found", memoryId });
 
     const canvas = safeParseCanvas(rows[0].canvas);
-    const tags = safeParseJson(rows[0].tags, []);
 
-    if (!canvas) return res.json({ items: [], cam: { x: 0, y: 0 }, tags });
+    // ✅ FIX: define these
+    const safeItems = Array.isArray(canvas?.items) ? canvas.items : [];
+    const safeCam =
+      canvas?.cam && typeof canvas.cam === "object" ? canvas.cam : { x: 0, y: 0 };
 
-    const safeItems = Array.isArray(canvas.items) ? canvas.items : [];
-    const safeCam = typeof canvas.cam === "object" && canvas.cam ? canvas.cam : { x: 0, y: 0 };
+    // ✅ tags: array OR legacy object
+    const tagsRaw = safeParseJson(rows[0].tags, []);
+    let tags = [];
 
+    if (Array.isArray(tagsRaw)) {
+      tags = tagsRaw;
+    } else if (tagsRaw && typeof tagsRaw === "object") {
+      const main = Array.isArray(tagsRaw.main) ? tagsRaw.main : [];
+      const sub = Array.isArray(tagsRaw.sub) ? tagsRaw.sub : [];
+      const third = Array.isArray(tagsRaw.third) ? tagsRaw.third : [];
+      tags = [...main, ...sub, ...third];
+    }
+
+    tags = [...new Set(tags.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()))];
+
+    // ✅ FIX: restore signed urls
     for (const item of safeItems) {
       if (item?.imageKey && typeof item.imageKey === "string") {
         item.imageUrl = await generateSignedUrl(item.imageKey);
@@ -183,14 +220,18 @@ router.get("/load", async (req, res) => {
     res.json({
       items: safeItems,
       cam: safeCam,
-      tags: Array.isArray(tags) ? tags : [],
-      updatedAt: canvas.updatedAt ?? null,
+      tags,
+      updatedAt: canvas?.updatedAt ?? null,
     });
   } catch (err) {
     console.error("canvas load error:", err);
-    res.status(500).json({ error: "Failed to load canvas", details: err?.message ?? String(err) });
+    res.status(500).json({
+      error: "Failed to load canvas",
+      details: err?.message ?? String(err),
+    });
   }
 });
+
 
 // DELETE /api/canvas/delete?memoryId=123
 router.delete("/delete", async (req, res) => {
@@ -198,8 +239,8 @@ router.delete("/delete", async (req, res) => {
     const memoryId = parseMemoryId(req.query?.memoryId);
     if (!memoryId) return res.status(400).json({ error: "memoryId required" });
 
-    // remove canvas + reset tags
-    const [result] = await db.execute(
+    // 1) DB update
+    const [dbResult] = await db.execute(
       `
       UPDATE memories
       SET
@@ -210,15 +251,46 @@ router.delete("/delete", async (req, res) => {
         tags = JSON_ARRAY()
       WHERE memory_id = ?
       `,
-      [memoryId],
+      [memoryId]
     );
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Memory not found", memoryId });
+    if (dbResult.affectedRows === 0) {
+      return res.status(404).json({ error: "Memory not found", memoryId });
+    }
 
-    res.json({ ok: true, deleted: true, memoryId });
+    // 2) R2 delete (count how many got deleted)
+    let deletedCount = 0;
+    try {
+      deletedCount = await deleteFromR2(`canvas/${memoryId}/`);
+    } catch (err) {
+      console.error("Error deleting from R2:", err);
+      // choose behavior:
+      // A) still return ok:true but include warning
+      // B) return 500 to force client to retry
+      // I'll do A (common for cleanup tasks)
+      return res.status(200).json({
+        ok: true,
+        deleted: true,
+        memoryId,
+        deletedCount: 0,
+        warning: "Canvas deleted in DB, but failed to delete images from R2",
+      });
+    }
+
+    if (deletedCount === 0) {
+      console.warn("No images found in R2 for memoryId:", memoryId);
+    } else {
+      console.log(`Deleted ${deletedCount} images from R2 for memoryId:`, memoryId);
+    }
+
+    // 3) respond once
+    return res.status(200).json({ ok: true, deleted: true, memoryId, deletedCount });
   } catch (err) {
     console.error("canvas delete error:", err);
-    res.status(500).json({ error: "Failed to delete canvas", details: err?.message ?? String(err) });
+    return res.status(500).json({
+      error: "Failed to delete canvas",
+      details: err?.message ?? String(err),
+    });
   }
 });
 

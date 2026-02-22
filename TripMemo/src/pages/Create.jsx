@@ -2,7 +2,8 @@ import NavBar from "../NavBar.jsx";
 import Canvas from "../canvas1.jsx";
 import Tools from "../toolbox/toolbar.jsx";
 import BottomDrawer from "../toolbox/assetStore.jsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 import React from "react";
 import "./Create.css";
 
@@ -19,6 +20,10 @@ export default function Create({
 }) {
   const [page, setPage] = useState("main");
   const [tags, setTags] = useState([]);
+  useEffect(() => {
+  setTags([]); // important: forces BottomDrawer to stop using old memory tags
+}, [memoryId]);
+
 
   return (
     <>

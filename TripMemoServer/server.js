@@ -176,12 +176,22 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
     }));
 
     const clipAnalysis = await clipAnalyse(payload);
-    //console.log(clipAnalysis);
+    console.log(clipAnalysis);
+    
     return res.json(clipAnalysis);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Processing failed" });
   }
+});
+
+
+app.get("/debug-tags", async (req, res) => {
+  const [rows] = await db.execute(
+    "SELECT tags, JSON_TYPE(tags) AS t FROM memories WHERE memory_id = ?",
+    [Number(req.query.memoryId)]
+  );
+  res.json(rows[0] ?? null);
 });
 
 // ---------------------------------------

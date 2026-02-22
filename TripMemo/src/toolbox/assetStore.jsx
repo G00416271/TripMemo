@@ -14,30 +14,20 @@ export default function BottomDrawer({ serverData, memoryTags = [] }) {
 
   const PIXABAY_API_KEY = "53481167-b261e4a8fd5c85523c6b9b422";
 
-  const tags = useMemo(() => {
-    // ✅ 1) use tags saved on this memory
-    if (Array.isArray(memoryTags) && memoryTags.length > 0) return memoryTags;
+const tags = useMemo(() => {
+  const pick = (arr) =>
+    [...new Set((arr ?? [])
+      .filter((t) => typeof t === "string" && t.trim())
+      .map((t) => t.replace(/_/g, " ").trim())
+    )];
 
-    // ✅ 2) fallback to serverData (CLIP)
-    if (!serverData) return [];
+  if (Array.isArray(memoryTags) && memoryTags.length) return pick(memoryTags);
+  if (Array.isArray(serverData) && serverData.length) return pick(serverData);
 
-    if (Array.isArray(serverData.sub) && serverData.sub.length > 0) {
-      return serverData.sub
-        .map((s) => {
-          if (typeof s !== "string") return null;
-          const parts = s.split(":");
-          const raw = parts[1] ?? parts[0];
-          return raw.replace(/_/g, " ").trim();
-        })
-        .filter(Boolean);
-    }
+  return [];
+}, [memoryTags, serverData]);
 
-    if (Array.isArray(serverData.main) && serverData.main.length > 0) {
-      return serverData.main;
-    }
-
-    return [];
-  }, [memoryTags, serverData]);
+  console.log("Derived tags for asset search:", tags);
 
   // keep query reasonable (Pixabay likes shorter queries)
   const query = useMemo(() => tags.slice(0, 5).join(" "), [tags]);

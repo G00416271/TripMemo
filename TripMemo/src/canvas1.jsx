@@ -57,6 +57,14 @@ function CanvasImage({
   );
 }
 
+const normalizeTags = (arr) => [
+  ...new Set(
+    (arr ?? [])
+      .filter((t) => typeof t === "string" && t.trim())
+      .map((t) => t.trim()),
+  ),
+];
+
 export default function CanvasPage({
   memoryId,
   memoryName,
@@ -64,8 +72,8 @@ export default function CanvasPage({
   uploadedFiles,
   setUploadedFiles,
   setMemoryTags,
+  serverData,
 }) {
-
   const trRef = useRef(null);
   const nodeRefs = useRef({}); // stores refs for each item by id
 
@@ -122,6 +130,23 @@ export default function CanvasPage({
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [tags, setTags] = useState([]);
+
+  // When upload returns new tags, push them into canvas tags + parent
+  useEffect(() => {
+    if (!Array.isArray(serverData) || serverData.length === 0) return;
+
+    // clean + dedupe
+    const nextTags = [
+      ...new Set(
+        serverData
+          .filter((t) => typeof t === "string" && t.trim())
+          .map((t) => t.trim()),
+      ),
+    ];
+
+    setTags(nextTags);
+    setMemoryTags?.(nextTags);
+  }, [serverData, setMemoryTags]);
 
   // drawing state
   const isDrawingRef = useRef(false);
@@ -534,44 +559,48 @@ export default function CanvasPage({
 
   const loadReqRef = useRef(0);
 
-  async function loadCanvas() {
-  try {
-    if (!memoryId) return;
+  const loadCanvas = useCallback(async () => {
+    try {
+      if (!memoryId) return;
 
-    const reqId = ++loadReqRef.current;
+      const reqId = ++loadReqRef.current;
 
-    const res = await fetch(
-      `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`
-    );
-    if (!res.ok) throw new Error("Load failed");
+      const res = await fetch(
+        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
+      );
+      if (!res.ok) throw new Error("Load failed");
 
-    const data = await res.json();
-    if (reqId !== loadReqRef.current) return;
+      const data = await res.json();
+      if (reqId !== loadReqRef.current) return;
 
-    const loadedTags = Array.isArray(data.tags) ? data.tags : [];
-    setTags(loadedTags);
-    setMemoryTags?.(loadedTags);
+      const loadedTags = Array.isArray(data?.tags) ? data.tags : [];
 
-    setItems(data.items ?? []);
-    setCam(data.cam ?? { x: 0, y: 0 });
+      const next = [...loadedTags];
+      setTags(next);
+      setMemoryTags?.(next);
+
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      setCam(
+        data?.cam && typeof data.cam === "object" ? data.cam : { x: 0, y: 0 },
+      );
+
+      setSelectedId(null);
+      setHistory([Array.isArray(data?.items) ? data.items : []]);
+      setHistoryIndex(0);
+      setCanvasLoaded(true);
+    } catch (err) {
+      console.error("loadCanvas error:", err);
+    }
+  }, [memoryId, setMemoryTags]);
+
+  useEffect(() => {
+    setCanvasLoaded(false);
+    setItems([]);
     setSelectedId(null);
+    setCam({ x: 0, y: 0 });
 
-    setHistory([data.items ?? []]);
-    setHistoryIndex(0);
-    setCanvasLoaded(true);
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-useEffect(() => {
-  setCanvasLoaded(false);
-  setItems([]);
-  setSelectedId(null);
-  setCam({ x: 0, y: 0 });
-
-  loadCanvas();
-}, [memoryId]);
+    loadCanvas();
+  }, [memoryId, loadCanvas]);
 
   const addedOnceRef = useRef(false);
   useEffect(() => {
@@ -595,7 +624,10 @@ useEffect(() => {
 
       form.append("memoryId", String(memoryId));
       form.append("cam", JSON.stringify(cam));
-      form.append("tags", JSON.stringify(tags));
+      const tagsToSave = tags.length ? tags : normalizeTags(serverData);
+
+      console.log("Saving with tags:", tagsToSave);
+      form.append("tags", JSON.stringify(tagsToSave));
 
       // Remove large base64 strings before sending to backend
       const cleanedItems = items.map((it) => {

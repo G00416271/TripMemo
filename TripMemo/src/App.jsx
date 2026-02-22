@@ -394,6 +394,7 @@ function App() {
 
         {activeTab === "create" && (
           <Memories
+            serverData={serverData}
             setActiveTab={setActiveTab}
             setSelectedMemoryId={setSelectedMemoryId}
             setSelectedMemoryName={setSelectedMemoryName}
