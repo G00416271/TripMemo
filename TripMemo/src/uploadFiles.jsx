@@ -1,10 +1,8 @@
-// DROP-IN REPLACEMENT: robust GPS extraction + parsing (keeps your existing component structure)
-
 import { useState } from "react";
 import ExifReader from "exifreader";
 import { useAuth } from "./Auth.jsx";
 
-// ---- helpers (drop-in) ----
+// ---- helpers ----
 function pickTag(tags, paths) {
   for (const p of paths) {
     const parts = p.split(".");
@@ -17,19 +15,15 @@ function pickTag(tags, paths) {
 }
 
 function toDecimalDegrees(value, ref) {
-  // value can be: "53° 20' 12.34\"" or [53,20,12.34] or [{numerator,denominator},...]
   const sign = ref === "S" || ref === "W" ? -1 : 1;
 
-  // Case 1: already a number
   if (typeof value === "number") return value * sign;
 
-  // Case 2: array forms
   if (Array.isArray(value)) {
     const nums = value.map((v) => {
       if (typeof v === "number") return v;
       if (typeof v === "string") return parseFloat(v);
       if (v && typeof v === "object") {
-        // rational
         if ("numerator" in v && "denominator" in v && v.denominator) {
           return v.numerator / v.denominator;
         }
@@ -42,7 +36,6 @@ function toDecimalDegrees(value, ref) {
     return sign * (Math.abs(d) + m / 60 + s / 3600);
   }
 
-  // Case 3: string like "53° 20' 12.34\"" or "53,20,12.34"
   if (typeof value === "string") {
     const cleaned = value
       .replace(/[^\d.+-]+/g, " ")
@@ -59,11 +52,10 @@ function toDecimalDegrees(value, ref) {
 }
 
 function extractGps(tags) {
-  // Try multiple common tag names/structures
   const latRaw = pickTag(tags, [
     "gps.Latitude",
     "gps.GPSLatitude",
-    "GPSLatitude", // some outputs flatten
+    "GPSLatitude",
   ]);
 
   const lonRaw = pickTag(tags, [
@@ -97,7 +89,40 @@ function extractGps(tags) {
   };
 }
 
-// ---- your component ----
+// NEW: flatten and rank tags from server response
+function buildServerData(serverResponse) {
+  if (!Array.isArray(serverResponse)) return [];
+
+  const counts = new Map();
+
+  for (const image of serverResponse) {
+    const fullImageTags = Array.isArray(image.full_image_tags)
+      ? image.full_image_tags
+      : [];
+
+    const ocrTags = Array.isArray(image.ocr_summary)
+      ? image.ocr_summary
+      : [];
+
+    const objectTags = Array.isArray(image.objects)
+      ? image.objects.flatMap((obj) =>
+          Array.isArray(obj.clip_tags) ? obj.clip_tags : []
+        )
+      : [];
+
+    const allTags = [...fullImageTags, ...ocrTags, ...objectTags];
+
+    for (const tag of allTags) {
+      if (!tag || typeof tag !== "string") continue;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  }
+
+ return [...counts.entries()]
+  .sort((a, b) => b[1] - a[1])
+  .map(([tag]) => tag);
+}
+
 export default function UploadFiles({
   onUploadComplete,
   onAddToCanvas,
@@ -108,6 +133,7 @@ export default function UploadFiles({
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("");
   const [metadataList, setMetadataList] = useState([]);
+  const [serverData, setServerData] = useState([]);
   const { user } = useAuth();
 
   async function extractMetadataFromFile(file) {
@@ -119,9 +145,7 @@ export default function UploadFiles({
     return {
       fileName: file.name,
       fileSize: file.size,
-
-      ...gps, // ✅ decimal degrees or null
-
+      ...gps,
       make: pickTag(tags, ["exif.Make"]) ?? null,
       model: pickTag(tags, ["exif.Model"]) ?? null,
       dateTimeOriginal: pickTag(tags, ["exif.DateTimeOriginal"]) ?? null,
@@ -179,9 +203,15 @@ export default function UploadFiles({
       }
 
       const data = await res.json();
+
+      // NEW: aggregate tags across all images
+      const aggregatedTags = buildServerData(data);
+      console.log("Aggregated tags:", aggregatedTags);
+      setServerData(aggregatedTags);
+
       setStatus("Upload complete");
       onFilesReady?.(files);
-      onUploadComplete?.(data);
+      onUploadComplete?.(aggregatedTags);
     } catch (err) {
       console.error(err);
       setStatus("Error connecting to server");
@@ -241,6 +271,12 @@ export default function UploadFiles({
         {metadataList.length > 0 && (
           <pre className="mt-4 text-xs bg-gray-950 p-3 rounded-lg overflow-auto">
             {JSON.stringify(metadataList, null, 2)}
+          </pre>
+        )}
+
+        {serverData.length > 0 && (
+          <pre className="mt-4 text-xs bg-gray-950 p-3 rounded-lg overflow-auto">
+            {JSON.stringify(serverData, null, 2)}
           </pre>
         )}
       </div>

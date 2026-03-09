@@ -27,7 +27,7 @@ const tags = useMemo(() => {
   return [];
 }, [memoryTags, serverData]);
 
-  console.log("Derived tags for asset search:", tags);
+  
 
   // keep query reasonable (Pixabay likes shorter queries)
   const query = useMemo(() => tags.slice(0, 5).join(" "), [tags]);
@@ -35,6 +35,7 @@ const tags = useMemo(() => {
   // reset to page 1 when query changes
   useEffect(() => {
     setPage(1);
+    console.log("Derived tags for asset search:", tags);
   }, [query]);
 
   // --- drag logic ---
