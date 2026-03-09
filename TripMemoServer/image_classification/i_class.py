@@ -8,8 +8,9 @@ from PIL import Image, UnidentifiedImageError
 # -----------------------------
 # Setup
 # -----------------------------
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
+
+device = "cuda" if torch.cuda.is_available() else "cpu" #if the gpu is available and cuda is installed, use it, otherwise use the cpu.
+model, preprocess = clip.load("ViT-B/32", device=device) #choose the clip model to use, ViT-B/32 in this case. The preprocess function is used to prepare images for the model.
 model.eval()
 
 classifier = [

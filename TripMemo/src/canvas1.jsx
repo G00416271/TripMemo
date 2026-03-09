@@ -80,7 +80,7 @@ export default function CanvasPage({
   const viewW = "100vw";
   const viewH = "100vh";
 
-  const GRID = 20;
+  const GRID = 50;
 
   const snap = (v) => Math.round(v / GRID) * GRID;
 
