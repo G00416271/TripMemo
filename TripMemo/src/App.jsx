@@ -43,7 +43,9 @@ import SOSPage from "./SOSPage";
 // import editor components
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/Create.jsx";
+import Trophy from "./pages/trophy.jsx";
 import Memories from "./loadMemories.jsx";
+import { FaGamepad, FaTrophy } from "react-icons/fa";
 
 const scrapbooks = [
   { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
@@ -418,6 +420,17 @@ function App() {
             setUploadedFiles={setUploadedFiles}
           />
         )}
+
+        {activeTab === "trophy" && (
+          <Trophy
+            memoryId={selectedMemoryId}
+            memoryName={SelectedMemoryName}
+            serverData={serverData}
+            uploadedFiles={uploadedFiles}
+            setActiveTab={setActiveTab}
+            setUploadedFiles={setUploadedFiles}
+          />
+        )}
       </main>
 
       {/* BOTTOM NAV */}
@@ -451,8 +464,16 @@ function App() {
           onClick={() => setActiveTab("sos")}
           label="SOS"
         />
+        
 
         <NavItem icon={<MdCollectionsBookmark />} label="Collections" />
+
+        <NavItem
+          icon={<FaTrophy />}
+          active={activeTab === "trophy"}
+          onClick={() => setActiveTab("trophy")}
+          label="Trophy"
+        />
       </nav>
     </div>
   );
