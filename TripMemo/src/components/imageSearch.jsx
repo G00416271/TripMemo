@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
+import { proxy } from '../canvas1'; // Import the proxy function for image URLs
 
 export default function ImageSearch() {
   const [query, setQuery] = useState('');
@@ -93,7 +94,7 @@ setLoading(true);
                 className="bg-white rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
               >
                 <img
-                  src={image.webformatURL}
+                  src={proxy(image.webformatURL)}
                   alt={image.tags}
                   className="w-full h-48 object-cover"
                 />

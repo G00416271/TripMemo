@@ -287,6 +287,67 @@ app.post("/memories", upload.none(), async (req, res) => {
     res.status(500).json({ error: "Processing failed" });
   }
 });
+
+
+app.get("/api/deezer/search", async (req, res) => {
+  try {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ error: "Missing query" });
+
+    const response = await fetch(
+      `https://api.deezer.com/search?q=${encodeURIComponent(q)}`
+    );
+
+    const data = await response.json();
+
+    const cleaned = (data.data || []).map((track) => ({
+      id: track.id,
+      title: track.title,
+      artist: track.artist.name, // ✅ FIX
+      cover: track.album.cover_big,
+      preview: track.preview,
+    }));
+
+    res.json(cleaned);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Deezer fetch failed" });
+  }
+});
+
+
+app.get("/api/image-proxy", async (req, res) => {
+  try {
+    const url = req.query.url;
+
+    // 🔥 STRONG VALIDATION
+    if (!url || typeof url !== "string" || !url.startsWith("http")) {
+      console.log("❌ Invalid URL received:", url);
+      return res.status(400).send("Invalid or missing URL");
+    }
+
+    console.log("✅ Proxying:", url);
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.log("❌ Fetch failed:", response.status);
+      return res.status(500).send("Failed to fetch image");
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    res.set(
+      "Content-Type",
+      response.headers.get("content-type") || "image/jpeg"
+    );
+
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("❌ Proxy error:", err);
+    res.status(500).send("Proxy error");
+  }
+});
 //connection tests
 app.get("/ping", (req, res) => {
   res.send("pong");

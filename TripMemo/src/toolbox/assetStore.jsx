@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import ImagePreview from "./imagePreview";
+import DeezerWidget from "./music";
+import ImageDropWidget from "./imageWidget";
+import { proxy } from "../proxy"; // Import the proxy function for image URLs
 
 export default function BottomDrawer({ serverData, memoryTags = [] }) {
   const [tab, setTab] = useState("assets");
@@ -14,20 +17,20 @@ export default function BottomDrawer({ serverData, memoryTags = [] }) {
 
   const PIXABAY_API_KEY = "53481167-b261e4a8fd5c85523c6b9b422";
 
-const tags = useMemo(() => {
-  const pick = (arr) =>
-    [...new Set((arr ?? [])
-      .filter((t) => typeof t === "string" && t.trim())
-      .map((t) => t.replace(/_/g, " ").trim())
-    )];
+  const tags = useMemo(() => {
+    const pick = (arr) => [
+      ...new Set(
+        (arr ?? [])
+          .filter((t) => typeof t === "string" && t.trim())
+          .map((t) => t.replace(/_/g, " ").trim()),
+      ),
+    ];
 
-  if (Array.isArray(memoryTags) && memoryTags.length) return pick(memoryTags);
-  if (Array.isArray(serverData) && serverData.length) return pick(serverData);
+    if (Array.isArray(memoryTags) && memoryTags.length) return pick(memoryTags);
+    if (Array.isArray(serverData) && serverData.length) return pick(serverData);
 
-  return [];
-}, [memoryTags, serverData]);
-
-  
+    return [];
+  }, [memoryTags, serverData]);
 
   // keep query reasonable (Pixabay likes shorter queries)
   const query = useMemo(() => tags.slice(0, 5).join(" "), [tags]);
@@ -90,6 +93,8 @@ const tags = useMemo(() => {
     fetchImages();
   }, [query, page, PIXABAY_API_KEY]);
 
+  
+
   return (
     <>
       <div
@@ -127,7 +132,6 @@ const tags = useMemo(() => {
         >
           ⬆
         </div>
-
         {/* tabs */}
         <div
           style={{
@@ -165,7 +169,6 @@ const tags = useMemo(() => {
             Widgets
           </button>
         </div>
-
         {/* content */}
         {tab === "assets" && (
           <div
@@ -232,7 +235,7 @@ const tags = useMemo(() => {
               {assets.map((img) => (
                 <img
                   key={img.id}
-                  src={img.webformatURL}
+                  src={proxy(img.webformatURL)}
                   loading="lazy"
                   onClick={() => setSelectedImage(img)}
                   draggable
@@ -241,8 +244,8 @@ const tags = useMemo(() => {
                     const src = img.largeImageURL || img.webformatURL;
 
                     // put the URL in the drag payload
-                    e.dataTransfer.setData("text/uri-list", src);
-                    e.dataTransfer.setData("text/plain", src);
+                    e.dataTransfer.setData("text/uri-list", proxy(src));
+                    e.dataTransfer.setData("text/plain", proxy(src));
 
                     // optional: nicer cursor behavior
                     e.dataTransfer.effectAllowed = "copy";
@@ -270,6 +273,13 @@ const tags = useMemo(() => {
             </div>
           </div>
         )}
+        {tab === "widgets" && (
+          <div className="flex justify-center gap-16 p-5">
+            <DeezerWidget />
+            <ImageDropWidget/>
+          </div>
+        )}
+        ,
       </div>
 
       {/* popup */}

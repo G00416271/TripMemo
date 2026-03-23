@@ -12,6 +12,7 @@ import {
 import useImage from "use-image";
 import Tools from "./toolbox/toolbar.jsx";
 import UploadFiles from "./uploadFiles.jsx";
+import { proxy } from "./proxy";
 
 function CanvasImage({
   it,
@@ -23,7 +24,11 @@ function CanvasImage({
   onSmoothDragEnd,
   snap,
 }) {
-  const [img] = useImage(it.imageUrl ?? it.src, "anonymous");
+  const actualSrc = it.imageUrl ?? it.src;
+
+  const proxied = proxy(actualSrc);
+
+  const [img] = useImage(proxied || "", "anonymous");
   if (!img) return null;
 
   return (
@@ -249,8 +254,10 @@ export default function CanvasPage({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Prevent default if we're not editing text
-      if (editingTextId) return;
+      const tag = document.activeElement?.tagName;
+
+      // ❌ ignore if typing in input/textarea
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -262,14 +269,14 @@ export default function CanvasPage({
         e.preventDefault();
         redo();
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
+        e.preventDefault(); // IMPORTANT
         deleteSelected();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo, redo, deleteSelected, editingTextId]);
+  }, [undo, redo, deleteSelected]);
 
   // Convert screen pointer -> world coords (accounts for cam)
   function pointerToWorld(stage) {
@@ -532,12 +539,13 @@ export default function CanvasPage({
 
           const w = 200;
           const h = Math.round((img.height / img.width) * w);
+          const padding = 100;
 
           const newItem = {
             id,
             type: "image",
-            x: -cam.x + 50,
-            y: -cam.y + 50,
+            x: -cam.x + padding + Math.random() * (size.w - padding * 2),
+            y: -cam.y + padding + Math.random() * (size.h - padding * 2),
             w,
             h,
             src: previewSrc, // for preview only
@@ -588,6 +596,7 @@ export default function CanvasPage({
       setHistory([Array.isArray(data?.items) ? data.items : []]);
       setHistoryIndex(0);
       setCanvasLoaded(true);
+      console.log("Canvas loaded:", data.items);
     } catch (err) {
       console.error("loadCanvas error:", err);
     }
@@ -689,11 +698,13 @@ export default function CanvasPage({
       const w = 200;
       const h = Math.round((img.height / img.width) * w);
 
+      const pos = getRandomPosition({ w, h }, items);
+
       const newItem = {
         id,
         type: "image",
-        x,
-        y,
+        x: pos.x,
+        y: pos.y,
         w,
         h,
         src,
@@ -708,6 +719,37 @@ export default function CanvasPage({
       setSelectedId(id);
     };
     img.src = src;
+    console.log("ADDING IMAGE:", src);
+  }
+
+  function isOverlapping(a, b) {
+    return !(
+      a.x + a.w < b.x ||
+      a.x > b.x + b.w ||
+      a.y + a.h < b.y ||
+      a.y > b.y + b.h
+    );
+  }
+
+  function getRandomPosition(newItem, existingItems) {
+    const padding = 50;
+    let tries = 0;
+
+    while (tries < 50) {
+      const x = -cam.x + padding + Math.random() * (size.w - padding * 2);
+      const y = -cam.y + padding + Math.random() * (size.h - padding * 2);
+
+      const testItem = { ...newItem, x, y };
+
+      const overlap = existingItems.some((it) => isOverlapping(testItem, it));
+
+      if (!overlap) return { x, y };
+
+      tries++;
+    }
+
+    // fallback if too crowded
+    return { x: -cam.x + 50, y: -cam.y + 50 };
   }
 
   return (
@@ -830,15 +872,32 @@ export default function CanvasPage({
           onDrop={(e) => {
             e.preventDefault();
 
+            let data = null;
+
+            try {
+              data = JSON.parse(e.dataTransfer.getData("application/json"));
+            } catch {}
+
+            const stage = stageRef.current;
+            if (!stage) return;
+
+            const pos = screenToWorld(stage, e.clientX, e.clientY);
+
+            // ✅ define src FIRST
             const src =
               e.dataTransfer.getData("text/uri-list") ||
               e.dataTransfer.getData("text/plain");
 
-            const stage = stageRef.current;
-            if (!stage || !src) return;
+            // 🎵 Deezer
+            if (data?.type === "deezer-track") {
+              addImageFromUrl(proxy(data.image), pos.x, pos.y);
+              return;
+            }
 
-            const pos = screenToWorld(stage, e.clientX, e.clientY);
-            addImageFromUrl(src, pos.x, pos.y);
+            // 🖼️ Images
+            if (!src) return;
+
+            addImageFromUrl(proxy(src), pos.x, pos.y);
           }}
         >
           <Stage

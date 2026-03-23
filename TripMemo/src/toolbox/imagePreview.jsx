@@ -1,3 +1,4 @@
+import { proxy } from "../proxy";
 export default function ImagePreview({ image, onClose }) {
   if (!image) return null;
 
@@ -19,7 +20,7 @@ export default function ImagePreview({ image, onClose }) {
       onClick={onClose}
     >
       <img
-        src={image.largeImageURL || image.webformatURL}
+        src={proxy(image.largeImageURL || image.webformatURL)}
         style={{
           maxWidth: "90%",
           maxHeight: "90%",

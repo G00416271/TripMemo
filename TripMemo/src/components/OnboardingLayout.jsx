@@ -13,7 +13,7 @@ export default function OnboardingLayout({
       
       {/* IMAGE BOX */}
       <div className="onboard-image-wrapper">
-        <img src={image} alt="onboarding" className="onboard-image" />
+        <img src={proxy(image)} alt="onboarding" className="onboard-image" />
       </div>
 
       {/* TEXT */}
