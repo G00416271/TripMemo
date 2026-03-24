@@ -26,10 +26,15 @@ function CanvasImage({
 }) {
   const actualSrc = it.imageUrl ?? it.src;
 
-  const proxied = proxy(actualSrc);
+  // 🚫 DO NOT proxy base64 images
+  const shouldProxy =
+    actualSrc &&
+    !actualSrc.startsWith("data:") && // base64
+    !actualSrc.includes("dzcdn.net"); // Deezer
 
-  const [img] = useImage(proxied || "", "anonymous");
-  if (!img) return null;
+  const finalSrc = shouldProxy ? proxy(actualSrc) : actualSrc;
+
+  const [img] = useImage(finalSrc || "", "anonymous");
 
   return (
     <KonvaImage
@@ -692,7 +697,7 @@ export default function CanvasPage({
     if (!src) return;
 
     const img = new window.Image();
-    img.crossOrigin = "anonymous"; // helps with CORS (Pixabay usually OK)
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const id = nextId();
       const w = 200;
@@ -718,7 +723,7 @@ export default function CanvasPage({
 
       setSelectedId(id);
     };
-    img.src = src;
+    img.src = proxy(src);
     console.log("ADDING IMAGE:", src);
   }
 
@@ -888,9 +893,48 @@ export default function CanvasPage({
               e.dataTransfer.getData("text/uri-list") ||
               e.dataTransfer.getData("text/plain");
 
-            // 🎵 Deezer
             if (data?.type === "deezer-track") {
-              addImageFromUrl(proxy(data.image), pos.x, pos.y);
+              const img = new window.Image();
+              img.crossOrigin = "anonymous";
+
+              img.onload = () => {
+                const id = nextId();
+                const textId = nextId();
+
+                const w = 200;
+                const h = Math.round((img.height / img.width) * w);
+
+                const posFinal = getRandomPosition({ w, h }, items);
+
+                const imageItem = {
+                  id,
+                  type: "image",
+                  x: posFinal.x,
+                  y: posFinal.y,
+                  w,
+                  h,
+                  src: proxy(data.image),
+                };
+
+                const textItem = {
+                  id: textId,
+                  type: "text",
+                  x: posFinal.x,
+                  y: posFinal.y + h + 10, // 👈 below image
+                  text: `${data.title} - ${data.artist}`,
+                  fontSize: 18,
+                };
+
+                setItems((prev) => {
+                  const next = [...prev, imageItem, textItem];
+                  addToHistory(next);
+                  return next;
+                });
+
+                setSelectedId(id);
+              };
+
+              img.src = proxy(data.image);
               return;
             }
 
