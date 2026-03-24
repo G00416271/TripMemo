@@ -13,6 +13,7 @@ import useImage from "use-image";
 import Tools from "./toolbox/toolbar.jsx";
 import UploadFiles from "./uploadFiles.jsx";
 import { proxy } from "./proxy";
+import DeezerCard from "./toolbox/deezercard";
 
 function CanvasImage({
   it,
@@ -899,34 +900,26 @@ export default function CanvasPage({
 
               img.onload = () => {
                 const id = nextId();
-                const textId = nextId();
 
                 const w = 200;
                 const h = Math.round((img.height / img.width) * w);
 
                 const posFinal = getRandomPosition({ w, h }, items);
 
-                const imageItem = {
+                const newItem = {
                   id,
-                  type: "image",
+                  type: "deezer",
                   x: posFinal.x,
                   y: posFinal.y,
                   w,
                   h,
-                  src: proxy(data.image),
-                };
-
-                const textItem = {
-                  id: textId,
-                  type: "text",
-                  x: posFinal.x,
-                  y: posFinal.y + h + 10, // 👈 below image
-                  text: `${data.title} - ${data.artist}`,
-                  fontSize: 18,
+                  src: data.image, // ❗ no proxy
+                  title: data.title,
+                  artist: data.artist,
                 };
 
                 setItems((prev) => {
-                  const next = [...prev, imageItem, textItem];
+                  const next = [...prev, newItem];
                   addToHistory(next);
                   return next;
                 });
@@ -934,7 +927,7 @@ export default function CanvasPage({
                 setSelectedId(id);
               };
 
-              img.src = proxy(data.image);
+              img.src = data.image; // ❗ no proxy
               return;
             }
 
@@ -1134,6 +1127,25 @@ export default function CanvasPage({
                       onResize={handleItemDragEnd}
                       nodeRef={(node) => (nodeRefs.current[it.id] = node)}
                       snap={snap}
+                    />
+                  );
+                }
+
+                if (it.type === "deezer") {
+                  return (
+                    <DeezerCard
+                      key={it.id}
+                      it={it}
+                      isSelected={it.id === selectedId}
+                      tool={tool}
+                      onSelect={() => selectItem(it.id)}
+                      onDragEnd={(e) =>
+                        handleItemDragEnd(it.id, {
+                          x: e.target.x(),
+                          y: e.target.y(),
+                        })
+                      }
+                      nodeRef={(node) => (nodeRefs.current[it.id] = node)}
                     />
                   );
                 }

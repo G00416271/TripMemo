@@ -322,11 +322,9 @@ app.get("/api/image-proxy", async (req, res) => {
 
     // 🔥 STRONG VALIDATION
     if (!url || typeof url !== "string" || !url.startsWith("http")) {
-      console.log("❌ Invalid URL received:", url);
+      console.log("Invalid URL received:", url);
       return res.status(400).send("Invalid or missing URL");
     }
-
-    console.log("✅ Proxying:", url);
 
     const response = await fetch(url);
 
