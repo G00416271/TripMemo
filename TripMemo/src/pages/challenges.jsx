@@ -2,32 +2,90 @@ import { useState, useRef, useCallback, useEffect } from "react";
 
 // ─── Challenge data ───────────────────────────────────────────────────────────
 const CHALLENGES = [
-  {
-    city: "Paris", country: "France", emoji: "🇫🇷",
-    tasks: [
-      { id: "paris_eiffel",  label: "Take a picture of the Eiffel Tower",    clipHint: "a photo of the Eiffel Tower in Paris" },
-      { id: "paris_arc",     label: "Take a picture of the Arc de Triomphe", clipHint: "a photo of the Arc de Triomphe in Paris" },
-    ],
-  },
-  {
-    city: "Dublin", country: "Ireland", emoji: "🇮🇪",
-    tasks: [
-      { id: "dublin_spire",  label: "Take a picture of the Spire",        clipHint: "a photo of the Spire monument in Dublin" },
-      { id: "dublin_liffey", label: "Take a picture of the River Liffey", clipHint: "a photo of the River Liffey in Dublin" },
-    ],
-  },
-  {
-    city: "London", country: "England", emoji: "🇬🇧",
-    tasks: [
-      { id: "london_bigben", label: "Take a picture of Big Ben", clipHint: "a photo of Big Ben clock tower in London" },
-    ],
-  },
-  {
-    city: "Galway", country: "Ireland", emoji: "🇮🇪",
-    tasks: [
-      { id: "galway_anything", label: "Take a picture of anything [Test]", clipHint: "a photo of anything" },
-    ],
-  },
+{
+  city: "Rome", country: "Italy", emoji: "🇮🇹",
+  tasks: [
+    { id: "rome_colosseum", label: "Take a picture of the Colosseum", clipHint: "a photo of the Colosseum in Rome" },
+    { id: "rome_trevi",     label: "Take a picture of the Trevi Fountain", clipHint: "a photo of the Trevi Fountain in Rome" },
+  ],
+},
+{
+  city: "New York", country: "USA", emoji: "🇺🇸",
+  tasks: [
+    { id: "ny_statue", label: "Take a picture of the Statue of Liberty", clipHint: "a photo of the Statue of Liberty in New York" },
+    { id: "ny_times",  label: "Take a picture of Times Square", clipHint: "a photo of Times Square in New York at night" },
+  ],
+},
+{
+  city: "Tokyo", country: "Japan", emoji: "🇯🇵",
+  tasks: [
+    { id: "tokyo_crossing", label: "Take a picture of Shibuya Crossing", clipHint: "a photo of Shibuya Crossing in Tokyo" },
+    { id: "tokyo_tower",    label: "Take a picture of Tokyo Tower", clipHint: "a photo of Tokyo Tower in Tokyo" },
+  ],
+},
+{
+  city: "Barcelona", country: "Spain", emoji: "🇪🇸",
+  tasks: [
+    { id: "barcelona_sagrada", label: "Take a picture of Sagrada Familia", clipHint: "a photo of Sagrada Familia in Barcelona" },
+    { id: "barcelona_beach",   label: "Take a picture at the beach", clipHint: "a photo of Barceloneta beach in Barcelona" },
+  ],
+},
+{
+  city: "Dubai", country: "UAE", emoji: "🇦🇪",
+  tasks: [
+    { id: "dubai_burj", label: "Take a picture of Burj Khalifa", clipHint: "a photo of Burj Khalifa in Dubai" },
+    { id: "dubai_desert", label: "Take a picture in the desert", clipHint: "a photo of desert dunes in Dubai" },
+  ],
+},
+{
+  city: "Sydney", country: "Australia", emoji: "🇦🇺",
+  tasks: [
+    { id: "sydney_opera", label: "Take a picture of the Sydney Opera House", clipHint: "a photo of Sydney Opera House" },
+    { id: "sydney_bridge", label: "Take a picture of the Harbour Bridge", clipHint: "a photo of Sydney Harbour Bridge" },
+  ],
+},
+{
+  city: "Cape Town", country: "South Africa", emoji: "🇿🇦",
+  tasks: [
+    { id: "capetown_table", label: "Take a picture of Table Mountain", clipHint: "a photo of Table Mountain in Cape Town" },
+    { id: "capetown_beach", label: "Take a picture of the coastline", clipHint: "a photo of Cape Town coastline" },
+  ],
+},
+{
+  city: "Amsterdam", country: "Netherlands", emoji: "🇳🇱",
+  tasks: [
+    { id: "amsterdam_canal", label: "Take a picture of the canals", clipHint: "a photo of canals in Amsterdam" },
+    { id: "amsterdam_bike", label: "Take a picture of a bicycle", clipHint: "a photo of bicycles in Amsterdam" },
+  ],
+},
+{
+  city: "Berlin", country: "Germany", emoji: "🇩🇪",
+  tasks: [
+    { id: "berlin_gate", label: "Take a picture of Brandenburg Gate", clipHint: "a photo of Brandenburg Gate in Berlin" },
+    { id: "berlin_wall", label: "Take a picture of the Berlin Wall", clipHint: "a photo of Berlin Wall graffiti" },
+  ],
+},
+{
+  city: "Rio de Janeiro", country: "Brazil", emoji: "🇧🇷",
+  tasks: [
+    { id: "rio_christ", label: "Take a picture of Christ the Redeemer", clipHint: "a photo of Christ the Redeemer statue" },
+    { id: "rio_beach", label: "Take a picture of Copacabana Beach", clipHint: "a photo of Copacabana beach in Rio" },
+  ],
+},
+{
+  city: "Reykjavik", country: "Iceland", emoji: "🇮🇸",
+  tasks: [
+    { id: "iceland_northern", label: "Take a picture of the Northern Lights", clipHint: "a photo of Northern Lights in Iceland" },
+    { id: "iceland_waterfall", label: "Take a picture of a waterfall", clipHint: "a photo of a waterfall in Iceland" },
+  ],
+},
+{
+  city: "Toronto", country: "Canada", emoji: "🇨🇦",
+  tasks: [
+    { id: "toronto_cn", label: "Take a picture of the CN Tower", clipHint: "a photo of CN Tower in Toronto" },
+    { id: "toronto_street", label: "Take a picture of a busy street", clipHint: "a photo of downtown Toronto street" },
+  ],
+},
 ];
 
 // ─── Landmark facts ───────────────────────────────────────────────────────────
@@ -38,6 +96,163 @@ const LANDMARK_FACTS = {
   dublin_liffey:   { title: "River Liffey",        year: "Ancient origin",  fact: "The Liffey flows 132 km from the Wicklow Mountains to Dublin Bay, splitting the city into Northside and Southside — a distinction Dubliners still take very seriously.", detail: "Sixteen bridges cross it through the city centre. The most famous, the Ha'penny Bridge, was built in 1816 and named after the toll once charged to cross it." },
   london_bigben:   { title: "Big Ben",             year: "First rang 1859", fact: "'Big Ben' technically refers only to the 13.7-tonne Great Bell inside the Elizabeth Tower — not the tower itself.", detail: "The clock's famous accuracy is maintained by a stack of old pennies on the pendulum. Adding or removing a coin shifts the tick by 0.4 seconds per day." },
   galway_anything: { title: "Galway",              year: "Founded c. 1124", fact: "Known as the City of Tribes after 14 merchant families, Galway is one of the few places where Irish is still spoken as a daily language.", detail: "The city hosts one of Europe's largest arts festivals every July, drawing over 200,000 visitors to its medieval streets." },
+
+
+  rome_colosseum: {
+    title: "Colosseum",
+    year: "Completed 80 AD",
+    fact: "The Colosseum could hold up to 50,000 spectators who came to watch gladiator battles, animal hunts, and even mock naval battles.",
+    detail: "It remains the largest ancient amphitheatre ever built and is one of the greatest feats of Roman engineering."
+  },
+  rome_trevi: {
+    title: "Trevi Fountain",
+    year: "Completed 1762",
+    fact: "Throwing a coin into the fountain is said to ensure your return to Rome — around €3,000 is collected daily.",
+    detail: "The coins are donated to charity, helping fund food and services for people in need."
+  },
+
+  ny_statue: {
+    title: "Statue of Liberty",
+    year: "Dedicated 1886",
+    fact: "The statue was a gift from France to the United States to celebrate friendship and freedom.",
+    detail: "Its full name is 'Liberty Enlightening the World', and it was originally a copper colour before oxidising to green."
+  },
+  ny_times: {
+    title: "Times Square",
+    year: "Named 1904",
+    fact: "Originally called Longacre Square, it was renamed after The New York Times moved its headquarters there.",
+    detail: "Over 300,000 pedestrians pass through Times Square daily, making it one of the busiest places on Earth."
+  },
+
+  tokyo_crossing: {
+    title: "Shibuya Crossing",
+    year: "Modern era",
+    fact: "Often called the busiest pedestrian crossing in the world, up to 3,000 people cross at once during peak times.",
+    detail: "It has become a global symbol of Tokyo’s energy and urban life."
+  },
+  tokyo_tower: {
+    title: "Tokyo Tower",
+    year: "Completed 1958",
+    fact: "Inspired by the Eiffel Tower, it is actually 13 metres taller than its Paris counterpart.",
+    detail: "It serves as a communications and observation tower and is painted orange and white for air safety."
+  },
+
+  barcelona_sagrada: {
+    title: "Sagrada Familia",
+    year: "Construction started 1882",
+    fact: "This basilica designed by Antoni Gaudí is still under construction over 140 years later.",
+    detail: "It is expected to be completed in the coming decades, funded largely by tourism."
+  },
+  barcelona_beach: {
+    title: "Barceloneta Beach",
+    year: "Modern development",
+    fact: "The beach was created in the 1990s as part of a major redevelopment for the 1992 Olympics.",
+    detail: "It is now one of the most popular urban beaches in Europe."
+  },
+
+  dubai_burj: {
+    title: "Burj Khalifa",
+    year: "Completed 2010",
+    fact: "At 828 metres, it is the tallest building in the world.",
+    detail: "You can watch the sunset twice in one evening — once from the ground and again from the top."
+  },
+  dubai_desert: {
+    title: "Arabian Desert",
+    year: "Ancient",
+    fact: "The desert covers most of the Arabian Peninsula and is known for its vast sand dunes.",
+    detail: "Temperatures can swing from over 45°C in the day to near freezing at night."
+  },
+
+  sydney_opera: {
+    title: "Sydney Opera House",
+    year: "Opened 1973",
+    fact: "Its unique shell design was inspired by orange peels.",
+    detail: "It is one of the most recognisable buildings in the world and a UNESCO World Heritage Site."
+  },
+  sydney_bridge: {
+    title: "Sydney Harbour Bridge",
+    year: "Opened 1932",
+    fact: "Nicknamed 'The Coathanger' due to its shape.",
+    detail: "Climbing the bridge has become a popular tourist activity offering panoramic city views."
+  },
+
+  capetown_table: {
+    title: "Table Mountain",
+    year: "Over 260 million years old",
+    fact: "The flat top is often covered by clouds known locally as the 'tablecloth'.",
+    detail: "It is one of the New 7 Wonders of Nature."
+  },
+  capetown_beach: {
+    title: "Cape Town Coastline",
+    year: "Natural",
+    fact: "Cape Town is one of the few places where you can see two oceans meet — the Atlantic and Indian Oceans.",
+    detail: "Its beaches are famous for dramatic scenery and cold, clear waters."
+  },
+
+  amsterdam_canal: {
+    title: "Amsterdam Canals",
+    year: "17th century",
+    fact: "The canal ring was built during the Dutch Golden Age and is a UNESCO World Heritage Site.",
+    detail: "There are over 100 km of canals and more bridges than Venice."
+  },
+  amsterdam_bike: {
+    title: "Cycling Culture",
+    year: "Modern",
+    fact: "There are more bicycles than people in Amsterdam.",
+    detail: "Cycling is the main mode of transport for many residents."
+  },
+
+  berlin_gate: {
+    title: "Brandenburg Gate",
+    year: "Completed 1791",
+    fact: "It once stood between East and West Berlin during the Cold War.",
+    detail: "Today it symbolises German unity and peace."
+  },
+  berlin_wall: {
+    title: "Berlin Wall",
+    year: "Built 1961",
+    fact: "The wall divided Berlin for 28 years before falling in 1989.",
+    detail: "Sections remain as a memorial and open-air gallery."
+  },
+
+  rio_christ: {
+    title: "Christ the Redeemer",
+    year: "Completed 1931",
+    fact: "The statue stands 30 metres tall and overlooks Rio from Mount Corcovado.",
+    detail: "It is one of the New 7 Wonders of the World."
+  },
+  rio_beach: {
+    title: "Copacabana Beach",
+    year: "Modern",
+    fact: "The beach stretches 4 km and is famous for its black-and-white wave-pattern promenade.",
+    detail: "It hosts huge events, including New Year’s celebrations."
+  },
+
+  iceland_northern: {
+    title: "Northern Lights",
+    year: "Natural phenomenon",
+    fact: "The lights are caused by solar particles colliding with Earth’s atmosphere.",
+    detail: "They appear in shifting colours like green, purple, and pink."
+  },
+  iceland_waterfall: {
+    title: "Icelandic Waterfalls",
+    year: "Natural",
+    fact: "Iceland has thousands of waterfalls due to its glaciers and volcanic landscape.",
+    detail: "Some of the most famous include Gullfoss and Skógafoss."
+  },
+
+  toronto_cn: {
+    title: "CN Tower",
+    year: "Completed 1976",
+    fact: "It was the world’s tallest free-standing structure for over 30 years.",
+    detail: "Visitors can walk on a glass floor 342 metres above the ground."
+  },
+  toronto_street: {
+    title: "Downtown Toronto",
+    year: "Modern",
+    fact: "Toronto is one of the most multicultural cities in the world.",
+    detail: "Over half of its population was born outside Canada."
+  },
 };
 
 // ─── Location helper ──────────────────────────────────────────────────────────
