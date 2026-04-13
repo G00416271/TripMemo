@@ -43,7 +43,7 @@ import SOSPage from "./SOSPage";
 // import editor components
 import UploadFiles from "./uploadFiles.jsx";
 import Create from "./pages/Create.jsx";
-import Trophy from "./pages/trophy.jsx";
+import Challenges from "./pages/challenges.jsx";
 import Memories from "./loadMemories.jsx";
 import { FaGamepad, FaTrophy } from "react-icons/fa";
 
@@ -381,7 +381,10 @@ function App() {
         )}
 
         {activeTab === "maps" && <MapsPage />}
-        {activeTab === "upload" && (
+
+      </main>
+
+              {activeTab === "upload" && (
           <FileUpload
             memoryId={selectedMemoryId}
             memoryName={SelectedMemoryName}
@@ -421,8 +424,8 @@ function App() {
           />
         )}
 
-        {activeTab === "trophy" && (
-          <Trophy
+        {activeTab === "Challenges" && (
+          <Challenges
             memoryId={selectedMemoryId}
             memoryName={SelectedMemoryName}
             serverData={serverData}
@@ -431,7 +434,6 @@ function App() {
             setUploadedFiles={setUploadedFiles}
           />
         )}
-      </main>
 
       {/* BOTTOM NAV */}
       <nav
@@ -466,13 +468,11 @@ function App() {
         />
         
 
-        <NavItem icon={<MdCollectionsBookmark />} label="Collections" />
-
         <NavItem
           icon={<FaTrophy />}
-          active={activeTab === "trophy"}
-          onClick={() => setActiveTab("trophy")}
-          label="Trophy"
+          active={activeTab === "Challenges"}
+          onClick={() => setActiveTab("Challenges")}
+          label="Challenges"
         />
       </nav>
     </div>

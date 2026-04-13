@@ -23,6 +23,11 @@ import { clipAnalyse } from "./clipAnalyse.js";
 import stage from "./imageStaging.js";
 import canvasDbRoutes from "./canvasDbRoutes.js";
 
+import { embedImages } from "./clipChallengeEmbed.js";
+import { validateChallenge, getCompletedChallenges, ensureChallengeTable, initChallengeVectors } from "./ChallengeManager.js";
+ensureChallengeTable().catch(console.error);
+initChallengeVectors().catch(console.error);
+
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -288,6 +293,52 @@ app.post("/memories", upload.none(), async (req, res) => {
   }
 });
 
+app.post("/challenge-submit", requireAuth, upload.array("images"), async (req, res) => {
+  try {
+    const taskId   = req.body.taskId;
+    const clipHint = req.body.clipHint;
+    const location = req.body.location
+      ? JSON.parse(req.body.location)   // comes in as a JSON string from FormData
+      : null;
+ 
+    // Run uploaded images through CLIP to get 512-dim vectors
+    const imageVectors = await embedImages(req.files ?? []);
+ 
+    console.group(`📤 /challenge-submit  •  ${taskId}`);
+    console.log("clipHint:",     clipHint);
+    console.log("location:",     location);
+    console.log("images:",       `${req.files?.length ?? 0} file(s)`);
+    console.log("vectorDims:",   imageVectors[0]?.length ?? 0);
+    console.groupEnd();
+ 
+    const result = await validateChallenge({
+      userId:       req.userId,
+      taskId,
+      imageVectors,
+      location,
+    });
+ 
+    res.status(result.success ? 200 : 422).json(result);
+  } catch (err) {
+    console.error("challenge-submit error:", err);
+    res.status(500).json({ success: false, reason: "server_error", message: "Server error. Please try again." });
+  }
+});
+ 
+
+
+
+
+// GET /challenge-completions — fetch all completed challenges for the logged-in user
+app.get("/challenge-completions", requireAuth, async (req, res) => {
+  const completions = await getCompletedChallenges(req.userId);
+  res.json(completions);
+});
+
+app.get("/challenges/completed", requireAuth, async (req, res) => {
+  const data = await getCompletedChallenges(req.userId);
+  res.json(data);
+});
 
 app.get("/api/deezer/search", async (req, res) => {
   try {

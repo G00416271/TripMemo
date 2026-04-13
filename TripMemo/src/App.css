@@ -265,7 +265,7 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 32px 0 calc(var(--bottom-nav-height) + 50px);
+  /* padding: 32px 0 calc(var(--bottom-nav-height) + 50px); */
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1060,7 +1060,7 @@ body {
     bottom: max(14px, env(safe-area-inset-bottom));
   }
 
-  .content {
+  /* .content {
     padding-bottom: max(calc(var(--bottom-nav-height) + 50px), calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 20px));
-  }
-}
+  }*/
+} 

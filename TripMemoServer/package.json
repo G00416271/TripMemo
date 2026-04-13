@@ -11,6 +11,7 @@
     "exifreader": "^4.36.1",
     "exiftool-vendored": "^33.5.0",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "genai": "^0.0.18",
     "heic-convert": "^2.1.0",
     "heic-decode": "^2.1.0",
