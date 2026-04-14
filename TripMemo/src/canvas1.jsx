@@ -6,14 +6,160 @@ import {
   Rect,
   Line,
   Text,
+  Circle,
   Image as KonvaImage,
   Transformer,
 } from "react-konva";
 import useImage from "use-image";
-import Tools from "./toolbox/toolbar.jsx";
-import UploadFiles from "./uploadFiles.jsx";
 import { proxy } from "./proxy";
+import { FONTS, FRAMES } from "./toolbox/deezercard";
 import DeezerCard from "./toolbox/deezercard";
+// ── helpers ───────────────────────────────────────────────────────────────────
+function isDarkColor(hex) {
+  const c = (hex ?? "#ffffff").replace("#", "");
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
+
+// ── Background layer — inside Konva Stage, pans/zooms for free ────────────────
+// ── Background layer — single pattern tile, zero per-element cost ─────────────
+function BackgroundLayer({ pattern, bgColor, zoom, size, cam }) {
+  if (pattern === "blank") return null;
+  if (zoom < 0.25) return null;
+
+  const SPACING = 28;
+  const ink = isDarkColor(bgColor)
+    ? "rgba(255,255,255,0.18)"
+    : "rgba(0,0,0,0.12)";
+
+  // Offset the pattern origin so it pans with the camera
+  // cam is in screen-space pixels, pattern is in world-space
+  // We need the offset in world-space, then Konva's scaleX/Y does the rest
+  const offsetX = (((cam.x / zoom) % SPACING) + SPACING) % SPACING;
+  const offsetY = (((cam.y / zoom) % SPACING) + SPACING) % SPACING;
+
+  // Width/height of the SVG we render — cover the full visible area in world coords
+  const worldW = size.w / zoom + SPACING * 2;
+  const worldH = size.h / zoom + SPACING * 2;
+
+  // Top-left corner in world coords (account for pattern offset)
+  const worldX = -cam.x / zoom - offsetX;
+  const worldY = -cam.y / zoom - offsetY;
+
+  const patternId = `bg-${pattern}`;
+
+  const svgContent =
+    pattern === "dots"
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="${worldW}" height="${worldH}">
+           <defs>
+             <pattern id="${patternId}" x="0" y="0"
+               width="${SPACING}" height="${SPACING}"
+               patternUnits="userSpaceOnUse">
+               <circle cx="${SPACING / 2}" cy="${SPACING / 2}"
+                 r="1.5" fill="${ink}" />
+             </pattern>
+           </defs>
+           <rect width="100%" height="100%" fill="url(#${patternId})" />
+         </svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="${worldW}" height="${worldH}">
+           <defs>
+             <pattern id="${patternId}" x="0" y="0"
+               width="${SPACING}" height="${SPACING}"
+               patternUnits="userSpaceOnUse">
+               <path d="M ${SPACING} 0 L 0 0 0 ${SPACING}"
+                 fill="none" stroke="${ink}" stroke-width="0.8" />
+             </pattern>
+           </defs>
+           <rect width="100%" height="100%" fill="url(#${patternId})" />
+         </svg>`;
+
+  const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`;
+
+  const [img] = useImage(dataUrl);
+
+  return (
+    <KonvaImage
+      image={img}
+      x={worldX}
+      y={worldY}
+      width={worldW}
+      height={worldH}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
+}
+
+// ── Pastel colours ────────────────────────────────────────────────────────────
+const PASTEL_COLORS = [
+  { label: "Ink", value: "#2d2d2d" },
+  { label: "Rose", value: "#F4A7B9" },
+  { label: "Peach", value: "#FFCBA4" },
+  { label: "Butter", value: "#FFF0A0" },
+  { label: "Mint", value: "#B5EAD7" },
+  { label: "Sky", value: "#AED9F7" },
+  { label: "Lavender", value: "#C5B9F6" },
+  { label: "Lilac", value: "#E8C6F0" },
+  { label: "Sage", value: "#C8DEBC" },
+  { label: "Blush", value: "#F7C5C5" },
+];
+
+function PenColorPicker({ currentColor, onColorChange }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 70,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "rgba(255,255,255,0.97)",
+        border: "1px solid #e0e0e0",
+        borderRadius: 12,
+        padding: "10px 14px",
+        zIndex: 1100,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+        minWidth: 240,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          color: "#888",
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+        }}
+      >
+        PEN COLOUR
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {PASTEL_COLORS.map((c) => (
+          <button
+            key={c.value}
+            title={c.label}
+            onClick={() => onColorChange(c.value)}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: "50%",
+              background: c.value,
+              border:
+                currentColor === c.value ? "3px solid #555" : "2px solid #ccc",
+              cursor: "pointer",
+              flexShrink: 0,
+              transform: currentColor === c.value ? "scale(1.25)" : "scale(1)",
+              transition: "transform 0.12s",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function CanvasImage({
   it,
@@ -26,17 +172,14 @@ function CanvasImage({
   snap,
 }) {
   const actualSrc = it.imageUrl ?? it.src;
-
-  // 🚫 DO NOT proxy base64 images
   const shouldProxy =
     actualSrc &&
-    !actualSrc.startsWith("data:") && // base64
-    !actualSrc.includes("dzcdn.net"); // Deezer
-
-  const finalSrc = shouldProxy ? proxy(actualSrc) : actualSrc;
-
-  const [img] = useImage(finalSrc || "", "anonymous");
-
+    !actualSrc.startsWith("data:") &&
+    !actualSrc.includes("dzcdn.net");
+  const [img] = useImage(
+    shouldProxy ? proxy(actualSrc) : actualSrc || "",
+    "anonymous",
+  );
   return (
     <KonvaImage
       ref={nodeRef}
@@ -49,19 +192,19 @@ function CanvasImage({
       strokeWidth={isSelected ? 2 : 0}
       draggable={tool === "selection"}
       onMouseDown={onSelect}
+      onTap={onSelect}
       onDragEnd={(e) => onSmoothDragEnd(it.id, e.target)}
       onTransformEnd={(e) => {
-        const node = e.target;
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
+        const node = e.target,
+          sx = node.scaleX(),
+          sy = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-
         onResize(it.id, {
           x: snap(node.x()),
           y: snap(node.y()),
-          w: Math.max(5, snap(node.width() * scaleX)),
-          h: Math.max(5, snap(node.height() * scaleY)),
+          w: Math.max(5, snap(node.width() * sx)),
+          h: Math.max(5, snap(node.height() * sy)),
         });
       }}
     />
@@ -76,6 +219,7 @@ const normalizeTags = (arr) => [
   ),
 ];
 
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function CanvasPage({
   memoryId,
   memoryName,
@@ -84,31 +228,45 @@ export default function CanvasPage({
   setUploadedFiles,
   setMemoryTags,
   serverData,
+  bgColor,
+  bgPattern,
+  onBgChange,
+  tool,
+  saveRef,
+  setTool,
 }) {
   const trRef = useRef(null);
-  const nodeRefs = useRef({}); // stores refs for each item by id
+  const nodeRefs = useRef({});
+  const stageRef = useRef(null);
+  const textInputRef = useRef(null);
+  const panHandlersRef = useRef({});
 
-  const viewW = "100vw";
-  const viewH = "100vh";
+  const bgColorRef = useRef(bgColor);
+  const bgPatternRef = useRef(bgPattern);
 
-  const GRID = 50;
+  useEffect(() => {
+    bgColorRef.current = bgColor;
+  }, [bgColor]);
+  useEffect(() => {
+    bgPatternRef.current = bgPattern;
+  }, [bgPattern]);
+
+  const GRID = 20;
+  const MIN_ZOOM = 0.2;
+  const MAX_ZOOM = 4;
 
   const snap = (v) => Math.round(v / GRID) * GRID;
-
   const snapXY = (x, y) => ({ x: snap(x), y: snap(y) });
 
   function tweenToSnap(node, onDone) {
     const { x, y } = snapXY(node.x(), node.y());
-
-    // already snapped
     if (x === node.x() && y === node.y()) {
       onDone?.({ x, y });
       return;
     }
-
     new Konva.Tween({
       node,
-      duration: 0.12, // tweak for feel
+      duration: 0.12,
       x,
       y,
       easing: Konva.Easings.EaseOut,
@@ -116,13 +274,10 @@ export default function CanvasPage({
     }).play();
   }
 
-  // which tool is selected from your toolbox
-  const [tool, setTool] = useState("selection");
   const [size, setSize] = useState({
     w: window.innerWidth,
     h: window.innerHeight,
   });
-
   useEffect(() => {
     const onResize = () =>
       setSize({ w: window.innerWidth, h: window.innerHeight });
@@ -131,85 +286,74 @@ export default function CanvasPage({
   }, []);
 
   const [canvasLoaded, setCanvasLoaded] = useState(false);
-
-  // camera (right-click pan)
   const [cam, setCam] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+
+  const [ctxMenu, setCtxMenu] = useState(null);
+
+  // camRef mirrors cam — pan handlers (created once) read from here, never stale
+  const camRef = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    camRef.current = cam;
+  }, [cam]);
+
   const isPanningRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
+  const lastPinchDistRef = useRef(null);
+  const lastPinchMidRef = useRef(null);
 
-  // canvas items
+  const [penColor, setPenColor] = useState(PASTEL_COLORS[0].value);
+  const [showPenPicker, setShowPenPicker] = useState(false);
+  useEffect(() => {
+    setShowPenPicker(tool === "pencil" || tool === "line");
+  }, [tool]);
+
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [tags, setTags] = useState([]);
 
-  // When upload returns new tags, push them into canvas tags + parent
   useEffect(() => {
-    if (!Array.isArray(serverData) || serverData.length === 0) return;
-
-    // clean + dedupe
-    const nextTags = [
+    if (!Array.isArray(serverData) || !serverData.length) return;
+    const next = [
       ...new Set(
         serverData
           .filter((t) => typeof t === "string" && t.trim())
           .map((t) => t.trim()),
       ),
     ];
-
-    setTags(nextTags);
-    setMemoryTags?.(nextTags);
+    setTags(next);
+    setMemoryTags?.(next);
   }, [serverData, setMemoryTags]);
 
-  // drawing state
   const isDrawingRef = useRef(false);
   const drawingIdRef = useRef(null);
 
-  // history for undo/redo
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // text editing
   const [editingTextId, setEditingTextId] = useState(null);
   const [editingTextValue, setEditingTextValue] = useState("");
   const [textInputPosition, setTextInputPosition] = useState({ x: 0, y: 0 });
 
-  const stageRef = useRef(null);
-  const textInputRef = useRef(null);
   const nextId = () => crypto.randomUUID();
 
-  // Add to history when items change (but not during drawing)
   const addToHistory = useCallback(
     (newItems) => {
-      if (isDrawingRef.current) return; // Don't add to history while drawing
-
+      if (isDrawingRef.current) return;
       setHistory((prev) => {
-        const newHistory = prev.slice(0, historyIndex + 1);
-        newHistory.push([...newItems]);
-        return newHistory.slice(-50); // Keep last 50 states
+        const h = prev.slice(0, historyIndex + 1);
+        h.push([...newItems]);
+        return h.slice(-50);
       });
       setHistoryIndex((prev) => Math.min(prev + 1, 49));
     },
     [historyIndex],
   );
 
-  const safeItems = items.map((it) => {
-    if (it.type !== "image") return it;
-
-    // if it's a base64 data url, DO NOT send it
-    const isDataUrl = typeof it.src === "string" && it.src.startsWith("data:");
-    if (isDataUrl) {
-      const { src, ...rest } = it;
-      return rest; // remove src
-    }
-
-    return it;
-  });
-
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-
     const node = selectedId ? nodeRefs.current[selectedId] : null;
-
     if (node) {
       tr.nodes([node]);
       tr.getLayer()?.batchDraw();
@@ -219,7 +363,6 @@ export default function CanvasPage({
     }
   }, [selectedId, items]);
 
-  // Update items and add to history
   const updateItems = useCallback(
     (newItems) => {
       setItems(newItems);
@@ -228,43 +371,35 @@ export default function CanvasPage({
     [addToHistory],
   );
 
-  // Undo function
   const undo = useCallback(() => {
     if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setItems([...history[newIndex]]);
+      const i = historyIndex - 1;
+      setHistoryIndex(i);
+      setItems([...history[i]]);
       setSelectedId(null);
     }
   }, [history, historyIndex]);
 
-  // Redo function
   const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setItems([...history[newIndex]]);
+      const i = historyIndex + 1;
+      setHistoryIndex(i);
+      setItems([...history[i]]);
       setSelectedId(null);
     }
   }, [history, historyIndex]);
 
-  // Delete selected item
   const deleteSelected = useCallback(() => {
     if (selectedId) {
-      const newItems = items.filter((item) => item.id !== selectedId);
-      updateItems(newItems);
+      updateItems(items.filter((item) => item.id !== selectedId));
       setSelectedId(null);
     }
   }, [selectedId, items, updateItems]);
 
-  // Handle keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const down = (e) => {
       const tag = document.activeElement?.tagName;
-
-      // ❌ ignore if typing in input/textarea
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-
       if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -275,43 +410,119 @@ export default function CanvasPage({
         e.preventDefault();
         redo();
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault(); // IMPORTANT
+        e.preventDefault();
         deleteSelected();
+      } else if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        handleZoom(0.1);
+      } else if (e.key === "-") {
+        e.preventDefault();
+        handleZoom(-0.1);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setZoom(1);
+        const c = { x: 0, y: 0 };
+        setCam(c);
+        camRef.current = c;
       }
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
   }, [undo, redo, deleteSelected]);
 
-  // Convert screen pointer -> world coords (accounts for cam)
-  function pointerToWorld(stage) {
-    const p = stage.getPointerPosition();
-    return { x: p.x - cam.x, y: p.y - cam.y };
+  // ── Zoom ──────────────────────────────────────────────────────────────────
+  function handleZoom(delta, focalX, focalY) {
+    setZoom((prev) => {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
+      if (focalX !== undefined)
+        setCam((c) => ({
+          x: focalX - (focalX - c.x) * (next / prev),
+          y: focalY - (focalY - c.y) * (next / prev),
+        }));
+      return next;
+    });
   }
+
+  function handleWheel(e) {
+    e.evt.preventDefault();
+    const p = stageRef.current.getPointerPosition();
+    handleZoom(e.evt.deltaY > 0 ? -0.08 : 0.08, p.x, p.y);
+  }
+
+  function pointerToWorld(stage) {
+    const p = stage.getPointerPosition(),
+      c = camRef.current;
+    return { x: (p.x - c.x) / zoom, y: (p.y - c.y) / zoom };
+  }
+
+  // ── Pan — imperative, zero React renders during drag ─────────────────────
+  useEffect(() => {
+    panHandlersRef.current.move = (e) => {
+      if (!isPanningRef.current) return;
+      const dx = e.clientX - lastMouseRef.current.x;
+      const dy = e.clientY - lastMouseRef.current.y;
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+      const stage = stageRef.current;
+      if (!stage) return;
+      const nx = stage.x() + dx,
+        ny = stage.y() + dy;
+      stage.x(nx);
+      stage.y(ny);
+      stage.batchDraw();
+      camRef.current = { x: nx, y: ny };
+    };
+    panHandlersRef.current.up = () => {
+      if (!isPanningRef.current) return;
+      isPanningRef.current = false;
+      const stage = stageRef.current;
+      if (stage) {
+        const c = { x: stage.x(), y: stage.y() };
+        setCam(c);
+        camRef.current = c;
+      }
+      window.removeEventListener("mousemove", panHandlersRef.current.move);
+      window.removeEventListener("mouseup", panHandlersRef.current.up);
+    };
+  }, []); // once — stable references forever
 
   function startRightClickPan(e) {
-    if (e.evt.button === 2) {
-      isPanningRef.current = true;
-      lastMouseRef.current = { x: e.evt.clientX, y: e.evt.clientY };
-      return true;
-    }
-    return false;
+    if (e.evt.button !== 2) return false;
+    isPanningRef.current = true;
+    lastMouseRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+    window.removeEventListener("mousemove", panHandlersRef.current.move);
+    window.removeEventListener("mouseup", panHandlersRef.current.up);
+    window.addEventListener("mousemove", panHandlersRef.current.move);
+    window.addEventListener("mouseup", panHandlersRef.current.up);
+    return true;
   }
 
-  // Start editing text
-  const startEditingText = (item) => {
+  function handleDeezerRightClick(e, itemId) {
+    e.evt.preventDefault();
+    e.cancelBubble = true;
     const stage = stageRef.current;
-    const stageBox = stage.container().getBoundingClientRect();
+    const container = stage.container().getBoundingClientRect();
+    // Convert Konva pointer to screen coords
+    const ptr = stage.getPointerPosition();
+    setCtxMenu({
+      id: itemId,
+      screenX: container.left + ptr.x,
+      screenY: container.top + ptr.y,
+    });
+  }
 
+  function updateDeezerStyle(id, patch) {
+    updateItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+
+  // ── Text ──────────────────────────────────────────────────────────────────
+  const startEditingText = (item) => {
+    const box = stageRef.current.container().getBoundingClientRect();
     setEditingTextId(item.id);
     setEditingTextValue(item.text);
     setTextInputPosition({
-      x: stageBox.left + item.x + cam.x,
-      y: stageBox.top + item.y + cam.y,
+      x: box.left + item.x * zoom + cam.x,
+      y: box.top + item.y * zoom + cam.y,
     });
-
-    // Focus the input after a brief delay
     setTimeout(() => {
       if (textInputRef.current) {
         textInputRef.current.focus();
@@ -320,45 +531,36 @@ export default function CanvasPage({
     }, 10);
   };
 
-  // Finish editing text
   const finishEditingText = () => {
-    if (editingTextId) {
-      const newItems = items.map((item) =>
+    if (!editingTextId) return;
+    updateItems(
+      items.map((item) =>
         item.id === editingTextId
           ? { ...item, text: editingTextValue || "Empty text" }
           : item,
-      );
-      updateItems(newItems);
-      setEditingTextId(null);
-      setEditingTextValue("");
-    }
+      ),
+    );
+    setEditingTextId(null);
+    setEditingTextValue("");
   };
 
+  // ── Mouse ─────────────────────────────────────────────────────────────────
   function handleMouseDown(e) {
-    // If we're editing text, finish editing
     if (editingTextId) {
       finishEditingText();
       return;
     }
-
-    // right click pan
     if (startRightClickPan(e)) return;
-
-    const stage = e.target.getStage();
-    const pos = pointerToWorld(stage);
-
-    // click empty space clears selection
+    const stage = e.target.getStage(),
+      pos = pointerToWorld(stage);
     if (tool === "selection" && e.target === stage) {
       setSelectedId(null);
       return;
     }
-
     if (tool === "eraser") {
       eraseAtPointer(e);
       return;
     }
-
-    // TEXT: click to place a text item
     if (tool === "text") {
       const id = nextId();
       const newItems = [
@@ -374,23 +576,16 @@ export default function CanvasPage({
       ];
       setItems(newItems);
       setSelectedId(id);
-
-      // Start editing the new text immediately
       setTimeout(() => {
-        const newItem = newItems.find((item) => item.id === id);
-        if (newItem) {
-          startEditingText(newItem);
-        }
+        const ni = newItems.find((i) => i.id === id);
+        if (ni) startEditingText(ni);
       }, 10);
       return;
     }
-
-    // RECTANGLE: click+drag to size
     if (tool === "rectangle") {
       const id = nextId();
       isDrawingRef.current = true;
       drawingIdRef.current = id;
-
       setItems((prev) => [
         ...prev,
         { id, type: "rect", x: pos.x, y: pos.y, w: 1, h: 1 },
@@ -398,30 +593,29 @@ export default function CanvasPage({
       setSelectedId(id);
       return;
     }
-
-    // LINE: click+drag to set end point
     if (tool === "line") {
       const id = nextId();
       isDrawingRef.current = true;
       drawingIdRef.current = id;
-
       setItems((prev) => [
         ...prev,
-        { id, type: "line", points: [pos.x, pos.y, pos.x, pos.y] },
+        {
+          id,
+          type: "line",
+          points: [pos.x, pos.y, pos.x, pos.y],
+          color: penColor,
+        },
       ]);
       setSelectedId(id);
       return;
     }
-
-    // PENCIL: freehand points
     if (tool === "pencil") {
       const id = nextId();
       isDrawingRef.current = true;
       drawingIdRef.current = id;
-
       setItems((prev) => [
         ...prev,
-        { id, type: "pencil", points: [pos.x, pos.y] },
+        { id, type: "pencil", points: [pos.x, pos.y], color: penColor },
       ]);
       setSelectedId(id);
       return;
@@ -430,179 +624,200 @@ export default function CanvasPage({
 
   function eraseAtPointer(e) {
     const target = e.target;
-    const stage = target.getStage();
-
-    // clicked empty space -> nothing to erase
-    if (target === stage) return;
-
+    if (target === target.getStage()) return;
     const id = target?.attrs?.id;
     if (!id) return;
-
-    const newItems = items.filter((it) => it.id !== id);
-    updateItems(newItems);
+    updateItems(items.filter((it) => it.id !== id));
     setSelectedId(null);
   }
 
   function handleMouseMove(e) {
-    // pan
-    if (isPanningRef.current) {
-      const now = { x: e.evt.clientX, y: e.evt.clientY };
-      const dx = now.x - lastMouseRef.current.x;
-      const dy = now.y - lastMouseRef.current.y;
-      lastMouseRef.current = now;
-      setCam((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-      return;
-    }
+    if (isPanningRef.current) return;
     if (tool === "eraser" && e.evt.buttons === 1) {
       eraseAtPointer(e);
       return;
     }
-
-    // drawing updates
     if (!isDrawingRef.current) return;
-
-    const stage = e.target.getStage();
-    const pos = pointerToWorld(stage);
-    const drawId = drawingIdRef.current;
-
+    const pos = pointerToWorld(e.target.getStage()),
+      drawId = drawingIdRef.current;
     setItems((prev) =>
       prev.map((it) => {
         if (it.id !== drawId) return it;
-
-        if (it.type === "rect") {
+        if (it.type === "rect")
           return { ...it, w: pos.x - it.x, h: pos.y - it.y };
-        }
-
         if (it.type === "line") {
           const [x1, y1] = it.points;
           return { ...it, points: [x1, y1, pos.x, pos.y] };
         }
-
-        if (it.type === "pencil") {
+        if (it.type === "pencil")
           return { ...it, points: [...it.points, pos.x, pos.y] };
-        }
-
         return it;
       }),
     );
   }
 
-  function handleMouseUp() {
-    isPanningRef.current = false;
-
+  function handleMouseUp(e) {
+    if (e?.evt?.button === 2) return;
     if (isDrawingRef.current) {
       isDrawingRef.current = false;
       drawingIdRef.current = null;
-
-      // push the latest items into history
       setItems((prev) => {
         addToHistory(prev);
         return prev;
       });
-
-      setTool("selection");
-
       return;
     }
-
     isDrawingRef.current = false;
     drawingIdRef.current = null;
   }
 
-  // Handle item dragging
-  const handleItemDragEnd = (id, newAttrs) => {
-    const newItems = items.map((item) =>
-      item.id === id ? { ...item, ...newAttrs } : item,
-    );
-    updateItems(newItems);
-  };
-
-  // selection clicking on items
-  function selectItem(id) {
-    if (tool !== "selection") return; // only select when selection tool is active
-    setSelectedId(id);
+  // ── Touch ─────────────────────────────────────────────────────────────────
+  function handleTouchStart(e) {
+    const t = e.evt.touches;
+    if (t.length === 2) {
+      lastPinchDistRef.current = Math.hypot(
+        t[1].clientX - t[0].clientX,
+        t[1].clientY - t[0].clientY,
+      );
+      lastPinchMidRef.current = {
+        x: (t[0].clientX + t[1].clientX) / 2,
+        y: (t[0].clientY + t[1].clientY) / 2,
+      };
+    } else if (t.length === 1) {
+      isPanningRef.current = true;
+      lastMouseRef.current = { x: t[0].clientX, y: t[0].clientY };
+    }
   }
 
-  // Double click to edit text
-  const handleTextDoubleClick = (item) => {
-    if (tool === "selection") {
-      startEditingText(item);
+  function handleTouchMove(e) {
+    const t = e.evt.touches;
+    if (t.length === 2 && lastPinchDistRef.current !== null) {
+      e.evt.preventDefault();
+      const dist = Math.hypot(
+        t[1].clientX - t[0].clientX,
+        t[1].clientY - t[0].clientY,
+      );
+      const mid = {
+        x: (t[0].clientX + t[1].clientX) / 2,
+        y: (t[0].clientY + t[1].clientY) / 2,
+      };
+      handleZoom(
+        (dist / lastPinchDistRef.current - 1) * zoom * 0.02,
+        mid.x,
+        mid.y,
+      );
+      if (lastPinchMidRef.current)
+        setCam((prev) => ({
+          x: prev.x + mid.x - lastPinchMidRef.current.x,
+          y: prev.y + mid.y - lastPinchMidRef.current.y,
+        }));
+      lastPinchDistRef.current = dist;
+      lastPinchMidRef.current = mid;
+    } else if (t.length === 1 && isPanningRef.current) {
+      const dx = t[0].clientX - lastMouseRef.current.x,
+        dy = t[0].clientY - lastMouseRef.current.y;
+      lastMouseRef.current = { x: t[0].clientX, y: t[0].clientY };
+      const stage = stageRef.current;
+      if (stage) {
+        stage.x(stage.x() + dx);
+        stage.y(stage.y() + dy);
+        stage.batchDraw();
+        camRef.current = { x: stage.x(), y: stage.y() };
+      }
     }
+  }
+
+  function handleTouchEnd() {
+    lastPinchDistRef.current = null;
+    lastPinchMidRef.current = null;
+    if (isPanningRef.current && stageRef.current)
+      setCam({ x: stageRef.current.x(), y: stageRef.current.y() });
+    isPanningRef.current = false;
+  }
+
+  const handleItemDragEnd = (id, newAttrs) =>
+    updateItems(
+      items.map((item) => (item.id === id ? { ...item, ...newAttrs } : item)),
+    );
+  function selectItem(id) {
+    if (tool !== "selection") return;
+    setSelectedId(id);
+  }
+  const handleTextDoubleClick = (item) => {
+    if (tool === "selection") startEditingText(item);
   };
+
   const addImageFromFile = useCallback(
     (file) => {
       if (!file) return;
-
       const reader = new FileReader();
-
       reader.onload = () => {
-        const previewSrc = String(reader.result);
-
-        const img = new window.Image();
+        const src = String(reader.result),
+          img = new window.Image();
         img.onload = () => {
-          const id = crypto.randomUUID();
-          const clientImageId = crypto.randomUUID();
-
-          const w = 200;
-          const h = Math.round((img.height / img.width) * w);
-          const padding = 100;
-
-          const newItem = {
-            id,
-            type: "image",
-            x: -cam.x + padding + Math.random() * (size.w - padding * 2),
-            y: -cam.y + padding + Math.random() * (size.h - padding * 2),
-            w,
-            h,
-            src: previewSrc, // for preview only
-            clientImageId, // backend mapping
-            _file: file, // actual file to upload
-          };
-
-          setItems((prev) => [...prev, newItem]);
+          const id = crypto.randomUUID(),
+            cid = crypto.randomUUID();
+          const w = 200,
+            h = Math.round((img.height / img.width) * w),
+            c = camRef.current;
+          setItems((prev) => [
+            ...prev,
+            {
+              id,
+              type: "image",
+              x:
+                (-c.x + size.w / 2) / zoom - w / 2 + (Math.random() - 0.5) * 80,
+              y:
+                (-c.y + size.h / 2) / zoom - h / 2 + (Math.random() - 0.5) * 80,
+              w,
+              h,
+              src,
+              clientImageId: cid,
+              _file: file,
+            },
+          ]);
           setSelectedId(id);
         };
-
-        img.src = previewSrc;
+        img.src = src;
       };
-
       reader.readAsDataURL(file);
     },
-    [cam],
+    [zoom, size],
   );
 
   const loadReqRef = useRef(0);
-
   const loadCanvas = useCallback(async () => {
     try {
       if (!memoryId) return;
-
       const reqId = ++loadReqRef.current;
-
       const res = await fetch(
         `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
       );
       if (!res.ok) throw new Error("Load failed");
-
       const data = await res.json();
       if (reqId !== loadReqRef.current) return;
 
+      console.log("loadCanvas data:", data);
+      console.log("bgColor from server:", data?.bgColor);
+      console.log("bgPattern from server:", data?.bgPattern);
+
       const loadedTags = Array.isArray(data?.tags) ? data.tags : [];
-
-      const next = [...loadedTags];
-      setTags(next);
-      setMemoryTags?.(next);
-
+      setTags([...loadedTags]);
+      setMemoryTags?.([...loadedTags]);
       setItems(Array.isArray(data?.items) ? data.items : []);
-      setCam(
-        data?.cam && typeof data.cam === "object" ? data.cam : { x: 0, y: 0 },
-      );
-
+      const lc =
+        data?.cam && typeof data.cam === "object" ? data.cam : { x: 0, y: 0 };
+      setCam(lc);
+      camRef.current = lc;
+      setZoom(data?.zoom ?? 1);
+      onBgChange?.({
+        bgColor: data?.bgColor ?? "#ffffff",
+        bgPattern: data?.bgPattern ?? "blank",
+      });
       setSelectedId(null);
       setHistory([Array.isArray(data?.items) ? data.items : []]);
       setHistoryIndex(0);
       setCanvasLoaded(true);
-      console.log("Canvas loaded:", data.items);
     } catch (err) {
       console.error("loadCanvas error:", err);
     }
@@ -612,8 +827,10 @@ export default function CanvasPage({
     setCanvasLoaded(false);
     setItems([]);
     setSelectedId(null);
-    setCam({ x: 0, y: 0 });
-
+    const rc = { x: 0, y: 0 };
+    setCam(rc);
+    camRef.current = rc;
+    setZoom(1);
     loadCanvas();
   }, [memoryId, loadCanvas]);
 
@@ -621,142 +838,105 @@ export default function CanvasPage({
   useEffect(() => {
     addedOnceRef.current = false;
   }, [memoryId, uploadedFiles]);
-
   useEffect(() => {
-    if (!canvasLoaded) return;
-    if (addedOnceRef.current) return;
-    if (!uploadedFiles || uploadedFiles.length === 0) return;
-
+    if (!canvasLoaded || addedOnceRef.current || !uploadedFiles?.length) return;
     uploadedFiles.forEach(addImageFromFile);
     addedOnceRef.current = true;
+    setUploadedFiles([]);
+  }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]);
 
-    setUploadedFiles([]); // ✅ clear staged uploads
-  }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]); // ✅ add here
+  const saveCanvas = useCallback(async () => {
+    console.log("saveCanvas called");
+    console.log("bgColor:", bgColorRef.current);
+    console.log("bgPattern:", bgPatternRef.current);
+    console.log("memoryId:", memoryId);
+    console.log("items:", items.length);
 
-  async function saveCanvas() {
     try {
       const form = new FormData();
-
       form.append("memoryId", String(memoryId));
-      form.append("cam", JSON.stringify(cam));
-      const tagsToSave = tags.length ? tags : normalizeTags(serverData);
-
-      console.log("Saving with tags:", tagsToSave);
-      form.append("tags", JSON.stringify(tagsToSave));
-
-      // Remove large base64 strings before sending to backend
-      const cleanedItems = items.map((it) => {
+      form.append("cam", JSON.stringify(camRef.current));
+      form.append("zoom", String(zoom));
+      form.append("bgColor", bgColorRef.current); // ← ref, never stale
+      form.append("bgPattern", bgPatternRef.current); // ← ref, never stale
+      form.append(
+        "tags",
+        JSON.stringify(tags.length ? tags : normalizeTags(serverData)),
+      );
+      const cleaned = items.map((it) => {
         if (it.type !== "image") return it;
-
         const { _file, ...rest } = it;
-
-        // remove base64 src if present
-        if (typeof rest.src === "string" && rest.src.startsWith("data:")) {
+        if (typeof rest.src === "string" && rest.src.startsWith("data:"))
           delete rest.src;
-        }
-
         return rest;
       });
-
-      form.append("items", JSON.stringify(cleanedItems));
-
-      // attach image files separately
+      form.append("items", JSON.stringify(cleaned));
       items.forEach((it) => {
-        if (it.type === "image" && it._file && it.clientImageId) {
-          const f = new File([it._file], it.clientImageId, {
-            type: it._file.type,
-          });
-          form.append("images", f);
-        }
+        if (it.type === "image" && it._file && it.clientImageId)
+          form.append(
+            "images",
+            new File([it._file], it.clientImageId, { type: it._file.type }),
+          );
       });
-
       const res = await fetch("http://localhost:5000/api/canvas/save", {
         method: "POST",
         body: form,
       });
-
       if (!res.ok) throw new Error("Save failed");
-
-      const data = await res.json();
-      console.log("Saved:", data);
     } catch (err) {
       console.error(err);
     }
-  }
+  }, [memoryId, zoom, tags, items, serverData]);
+
+  // This now only re-runs when saveCanvas actually changes
+  useEffect(() => {
+    if (saveRef) saveRef.current = saveCanvas;
+  }, [saveCanvas]);
 
   function screenToWorld(stage, clientX, clientY) {
-    const rect = stage.container().getBoundingClientRect();
-    const xOnStage = clientX - rect.left;
-    const yOnStage = clientY - rect.top;
-
-    // Stage is drawn with x={cam.x}, y={cam.y}
-    // so world = screen - cam
-    return { x: xOnStage - cam.x, y: yOnStage - cam.y };
+    const rect = stage.container().getBoundingClientRect(),
+      c = camRef.current;
+    return {
+      x: (clientX - rect.left - c.x) / zoom,
+      y: (clientY - rect.top - c.y) / zoom,
+    };
   }
 
   function addImageFromUrl(src, x, y) {
     if (!src) return;
-
     const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      const id = nextId();
-      const w = 200;
-      const h = Math.round((img.height / img.width) * w);
-
-      const pos = getRandomPosition({ w, h }, items);
-
-      const newItem = {
-        id,
-        type: "image",
-        x: pos.x,
-        y: pos.y,
-        w,
-        h,
-        src,
-      };
-
+      const id = nextId(),
+        w = 200,
+        h = Math.round((img.height / img.width) * w);
       setItems((prev) => {
-        const next = [...prev, newItem];
+        const next = [
+          ...prev,
+          { id, type: "image", x: x - w / 2, y: y - h / 2, w, h, src },
+        ];
         addToHistory(next);
         return next;
       });
-
       setSelectedId(id);
     };
     img.src = proxy(src);
-    console.log("ADDING IMAGE:", src);
   }
 
-  function isOverlapping(a, b) {
-    return !(
-      a.x + a.w < b.x ||
-      a.x > b.x + b.w ||
-      a.y + a.h < b.y ||
-      a.y > b.y + b.h
-    );
-  }
-
-  function getRandomPosition(newItem, existingItems) {
-    const padding = 50;
-    let tries = 0;
-
-    while (tries < 50) {
-      const x = -cam.x + padding + Math.random() * (size.w - padding * 2);
-      const y = -cam.y + padding + Math.random() * (size.h - padding * 2);
-
-      const testItem = { ...newItem, x, y };
-
-      const overlap = existingItems.some((it) => isOverlapping(testItem, it));
-
-      if (!overlap) return { x, y };
-
-      tries++;
-    }
-
-    // fallback if too crowded
-    return { x: -cam.x + 50, y: -cam.y + 50 };
-  }
+  const zoomBtnStyle = {
+    width: 36,
+    height: 28,
+    border: "1px solid #ddd",
+    borderRadius: 6,
+    background: "white",
+    cursor: "pointer",
+    fontSize: 16,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "bold",
+    color: "#444",
+  };
 
   return (
     <div
@@ -767,63 +947,106 @@ export default function CanvasPage({
         margin: 0,
         overflow: "hidden",
         position: "relative",
+        background: bgColor,
+        touchAction: "none",
       }}
     >
-      <Tools
-        tool={tool}
-        setTool={setTool}
-        onSave={saveCanvas}
-        setActiveTab={setActiveTab}
-        onPickFiles={(files) =>
-          Array.from(files ?? []).forEach(addImageFromFile)
-        }
-      />
-
       <div
         style={{
           position: "absolute",
           top: 10,
           left: 180,
           zIndex: 1000,
-          background: "white",
-          padding: 6,
+          background: "rgba(255,255,255,0.9)",
+          padding: "4px 8px",
+          borderRadius: 6,
+          fontSize: 13,
         }}
       >
         {memoryName} (#{memoryId})
       </div>
 
-      {/* Status bar showing keyboard shortcuts */}
       <div
         style={{
           position: "absolute",
           top: 10,
           right: 10,
-          background: "rgba(0,0,0,0.7)",
+          background: "rgba(0,0,0,0.6)",
           color: "white",
-          padding: "8px",
-          borderRadius: "4px",
-          fontSize: "12px",
+          padding: "6px 10px",
+          borderRadius: 6,
+          fontSize: 11,
           zIndex: 1000,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
         }}
       >
-        <div>Ctrl+Z: Undo | Ctrl+Shift+Z: Redo</div>
-        <div>Delete/Backspace: Delete selected</div>
-        <div>Double-click text to edit</div>
+        <div>Ctrl+Z / Ctrl+Shift+Z — Undo / Redo</div>
+        <div>Delete / Backspace — Remove selected</div>
+        <div>Scroll — Zoom · Right-drag — Pan</div>
+        <div>+/−/0 — Zoom in/out/reset</div>
       </div>
 
-      {/* Image upload
-      <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1000 }}>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            addImageFromFile(e.target.files?.[0]);
-            e.target.value = ""; // clears file so same image can be selected again
-          }}
-        />
-      </div> */}
+      {showPenPicker && (
+        <PenColorPicker currentColor={penColor} onColorChange={setPenColor} />
+      )}
 
-      {/* Text editing input */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 20,
+          right: 20,
+          zIndex: 1000,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          background: "rgba(255,255,255,0.95)",
+          border: "1px solid #e0e0e0",
+          borderRadius: 10,
+          padding: 6,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+        }}
+      >
+        <button
+          onClick={() => handleZoom(0.15)}
+          style={zoomBtnStyle}
+          title="Zoom in (+)"
+        >
+          ＋
+        </button>
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: 11,
+            color: "#666",
+            padding: "2px 0",
+            minWidth: 36,
+          }}
+        >
+          {Math.round(zoom * 100)}%
+        </div>
+        <button
+          onClick={() => handleZoom(-0.15)}
+          style={zoomBtnStyle}
+          title="Zoom out (-)"
+        >
+          －
+        </button>
+        <button
+          onClick={() => {
+            setZoom(1);
+            const c = { x: 0, y: 0 };
+            setCam(c);
+            camRef.current = c;
+          }}
+          style={{ ...zoomBtnStyle, fontSize: 9 }}
+          title="Reset (0)"
+        >
+          FIT
+        </button>
+      </div>
+
       {editingTextId && (
         <input
           ref={textInputRef}
@@ -832,9 +1055,8 @@ export default function CanvasPage({
           onChange={(e) => setEditingTextValue(e.target.value)}
           onBlur={finishEditingText}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              finishEditingText();
-            } else if (e.key === "Escape") {
+            if (e.key === "Enter") finishEditingText();
+            if (e.key === "Escape") {
               setEditingTextId(null);
               setEditingTextValue("");
             }
@@ -843,318 +1065,526 @@ export default function CanvasPage({
             position: "fixed",
             left: textInputPosition.x,
             top: textInputPosition.y,
-            fontSize: "24px",
+            fontSize: `${24 * zoom}px`,
             border: "2px solid dodgerblue",
-            borderRadius: "4px",
+            borderRadius: 4,
             padding: "2px 6px",
             zIndex: 1000,
             background: "white",
+            minWidth: 120,
           }}
         />
       )}
 
-      {/* Canvas */}
       <div
         style={{
           width: "100vw",
           height: "100vh",
-          border: "1px solid #ffffff86",
           overflow: "hidden",
           userSelect: "none",
+          position: "relative",
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          let data = null;
+          try {
+            data = JSON.parse(e.dataTransfer.getData("application/json"));
+          } catch {}
+          const stage = stageRef.current;
+          if (!stage) return;
+          const pos = screenToWorld(stage, e.clientX, e.clientY);
+          const src =
+            e.dataTransfer.getData("text/uri-list") ||
+            e.dataTransfer.getData("text/plain");
+          if (data?.type === "deezer-track") {
+            const img = new window.Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+              const id = nextId();
+              const w = 200;
+              const h = 200;
+              setItems((prev) => {
+                const next = [
+                  ...prev,
+                  {
+                    id,
+                    type: "deezer",
+                    x: pos.x - w / 2,
+                    y: pos.y - h / 2,
+                    w,
+                    h,
+                    src: data.image,
+                    title: data.title,
+                    artist: data.artist,
+                    frame: data.frame ?? "none",
+                    fontFamily: data.fontFamily ?? "Arial",
+                    fontColor: data.fontColor ?? "#000000",
+                  },
+                ];
+                addToHistory(next);
+                return next;
+              });
+              setSelectedId(id);
+            };
+            img.src = data.image;
+            return;
+          }
+          if (src) addImageFromUrl(proxy(src), pos.x, pos.y);
         }}
       >
-        <div
-          style={{
-            width: "100vw",
-            height: "100vh",
-            border: "1px solid #ffffff86",
-            overflow: "hidden",
-            userSelect: "none",
-          }}
-          onDragOver={(e) => {
-            e.preventDefault(); // REQUIRED or drop won't fire
-            e.dataTransfer.dropEffect = "copy";
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-
-            let data = null;
-
-            try {
-              data = JSON.parse(e.dataTransfer.getData("application/json"));
-            } catch {}
-
-            const stage = stageRef.current;
-            if (!stage) return;
-
-            const pos = screenToWorld(stage, e.clientX, e.clientY);
-
-            // ✅ define src FIRST
-            const src =
-              e.dataTransfer.getData("text/uri-list") ||
-              e.dataTransfer.getData("text/plain");
-
-            if (data?.type === "deezer-track") {
-              const img = new window.Image();
-              img.crossOrigin = "anonymous";
-
-              img.onload = () => {
-                const id = nextId();
-
-                const w = 200;
-                const h = Math.round((img.height / img.width) * w);
-
-                const posFinal = getRandomPosition({ w, h }, items);
-
-                const newItem = {
-                  id,
-                  type: "deezer",
-                  x: posFinal.x,
-                  y: posFinal.y,
-                  w,
-                  h,
-                  src: data.image, // ❗ no proxy
-                  title: data.title,
-                  artist: data.artist,
-                };
-
-                setItems((prev) => {
-                  const next = [...prev, newItem];
-                  addToHistory(next);
-                  return next;
-                });
-
-                setSelectedId(id);
-              };
-
-              img.src = data.image; // ❗ no proxy
-              return;
-            }
-
-            // 🖼️ Images
-            if (!src) return;
-
-            addImageFromUrl(proxy(src), pos.x, pos.y);
-          }}
-        >
-          <Stage
-            ref={stageRef}
-            width={size.w}
-            height={size.h}
-            x={cam.x}
-            y={cam.y}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            <Layer>
-              {tool === "selection" && (
-                <Transformer
-                  ref={trRef}
-                  keepRatio={
-                    items.find((i) => i.id === selectedId)?.type === "image"
-                  }
+        {/* ── DEEZER CONTEXT MENU ──────────────────────────────────────────────── */}
+        {ctxMenu &&
+          (() => {
+            const item = items.find((i) => i.id === ctxMenu.id);
+            if (!item) return null;
+            return (
+              <>
+                {/* Click-away backdrop */}
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 1299 }}
+                  onClick={() => setCtxMenu(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setCtxMenu(null);
+                  }}
                 />
-              )}
+                <div
+                  style={{
+                    position: "fixed",
+                    left: ctxMenu.screenX,
+                    top: ctxMenu.screenY,
+                    zIndex: 1300,
+                    background: "#ffffff",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: 12,
+                    padding: "14px 16px",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                    minWidth: 220,
+                    fontFamily: "system-ui, sans-serif",
+                    fontSize: 13,
+                  }}
+                >
+                  {/* ── Frame ── */}
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: "0.08em",
+                      color: "#999",
+                      marginBottom: 8,
+                    }}
+                  >
+                    FRAME
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {FRAMES.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() =>
+                          updateDeezerStyle(ctxMenu.id, { frame: f.id })
+                        }
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          border:
+                            item.frame === f.id
+                              ? "2px solid #4a90e2"
+                              : "1px solid #ddd",
+                          background:
+                            item.frame === f.id ? "#e8f0fc" : "#f7f7f7",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: item.frame === f.id ? 600 : 400,
+                          color: item.frame === f.id ? "#2a62c0" : "#333",
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
 
-              {items.map((it) => {
-                if (it.type === "rect") {
-                  return (
-                    <Rect
-                      id={it.id}
-                      ref={(node) => (nodeRefs.current[it.id] = node)}
-                      key={it.id}
-                      x={it.x}
-                      y={it.y}
-                      width={it.w}
-                      height={it.h}
-                      fill="transparent"
-                      stroke={it.id === selectedId ? "dodgerblue" : "black"}
-                      strokeWidth={it.id === selectedId ? 2 : 1}
-                      draggable={tool === "selection"}
-                      onMouseDown={() => selectItem(it.id)}
-                      onDragEnd={(e) => {
-                        const node = e.target;
-                        tweenToSnap(node, ({ x, y }) =>
-                          handleItemDragEnd(it.id, { x, y }),
-                        );
+                  {/* ── Font family ── */}
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: "0.08em",
+                      color: "#999",
+                      marginBottom: 8,
+                    }}
+                  >
+                    FONT
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {FONTS.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() =>
+                          updateDeezerStyle(ctxMenu.id, { fontFamily: f })
+                        }
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          border:
+                            item.fontFamily === f
+                              ? "2px solid #4a90e2"
+                              : "1px solid #ddd",
+                          background:
+                            item.fontFamily === f ? "#e8f0fc" : "#f7f7f7",
+                          cursor: "pointer",
+                          fontFamily: f,
+                          fontSize: 13,
+                          textAlign: "left",
+                          color: item.fontFamily === f ? "#2a62c0" : "#333",
+                        }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Font colour ── */}
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: "0.08em",
+                      color: "#999",
+                      marginBottom: 8,
+                    }}
+                  >
+                    FONT COLOUR
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {[
+                      "#000000",
+                      "#ffffff",
+                      "#ff4444",
+                      "#4a90e2",
+                      "#f5a623",
+                      "#7ed321",
+                      "#9b59b6",
+                    ].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() =>
+                          updateDeezerStyle(ctxMenu.id, { fontColor: c })
+                        }
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background: c,
+                          border:
+                            item.fontColor === c
+                              ? "3px solid #4a90e2"
+                              : "2px solid #ccc",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          transform:
+                            item.fontColor === c ? "scale(1.2)" : "scale(1)",
+                        }}
+                      />
+                    ))}
+                    {/* Custom colour picker */}
+                    <label
+                      style={{
+                        position: "relative",
+                        width: 24,
+                        height: 24,
+                        cursor: "pointer",
                       }}
-                      onTransformEnd={(e) => {
-                        const node = e.target;
-                        const scaleX = node.scaleX();
-                        const scaleY = node.scaleY();
+                    >
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          background:
+                            "conic-gradient(red,yellow,lime,cyan,blue,magenta,red)",
+                          border: "2px solid #ccc",
+                        }}
+                      />
+                      <input
+                        type="color"
+                        defaultValue={item.fontColor ?? "#000000"}
+                        onChange={(e) =>
+                          updateDeezerStyle(ctxMenu.id, {
+                            fontColor: e.target.value,
+                          })
+                        }
+                        style={{
+                          position: "absolute",
+                          opacity: 0,
+                          inset: 0,
+                          cursor: "pointer",
+                        }}
+                      />
+                    </label>
+                  </div>
 
-                        node.scaleX(1);
-                        node.scaleY(1);
+                  <button
+                    onClick={() => setCtxMenu(null)}
+                    style={{
+                      width: "100%",
+                      padding: "6px 0",
+                      borderRadius: 7,
+                      border: "1px solid #eee",
+                      background: "#f5f5f5",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      color: "#666",
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+        <Stage
+          ref={stageRef}
+          width={size.w}
+          height={size.h}
+          x={cam.x}
+          y={cam.y}
+          scaleX={zoom}
+          scaleY={zoom}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onContextMenu={(e) => e.evt.preventDefault()}
+        >
+          {/* Background lives inside Stage — pans & zooms for free, zero extra work */}
+          <Layer listening={false}>
+            <BackgroundLayer
+              pattern={bgPattern}
+              bgColor={bgColor}
+              zoom={zoom}
+              size={size}
+              cam={cam}
+            />
+          </Layer>
 
-                        const snapped = {
-                          x: snap(node.x()),
-                          y: snap(node.y()),
-                          w: Math.max(5, snap(node.width() * scaleX)),
-                          h: Math.max(5, snap(node.height() * scaleY)),
-                        };
+          <Layer>
+            {tool === "selection" && (
+              <Transformer
+                ref={trRef}
+                keepRatio={["image", "deezer"].includes(
+                  items.find((i) => i.id === selectedId)?.type,
+                )}
+              />
+            )}
 
-                        handleItemDragEnd(it.id, snapped);
-                      }}
-                    />
-                  );
-                }
-
-                if (it.type === "line") {
-                  return (
-                    <Line
-                      id={it.id}
-                      key={it.id}
-                      points={it.points}
-                      stroke="black"
-                      strokeWidth={3}
-                      draggable={tool === "selection"}
-                      onMouseDown={() => selectItem(it.id)}
-                      onDragEnd={(e) => {
-                        const node = e.target;
-                        const dx = node.x();
-                        const dy = node.y();
-
-                        const snappedPoints = it.points.map((v, i) =>
-                          i % 2 === 0 ? snap(v + dx) : snap(v + dy),
-                        );
-
-                        // animate node back to origin smoothly
-                        new Konva.Tween({
-                          node,
-                          duration: 0.12,
-                          x: 0,
-                          y: 0,
-                          easing: Konva.Easings.EaseOut,
-                          onFinish: () =>
-                            handleItemDragEnd(it.id, { points: snappedPoints }),
-                        }).play();
-                      }}
-                    />
-                  );
-                }
-
-                if (it.type === "pencil") {
-                  return (
-                    <Line
-                      id={it.id}
-                      key={it.id}
-                      points={it.points}
-                      stroke="black"
-                      strokeWidth={3}
-                      lineCap="round"
-                      lineJoin="round"
-                      draggable={tool === "selection"}
-                      onMouseDown={() => selectItem(it.id)}
-                      onDragEnd={(e) => {
-                        const node = e.target;
-                        const dx = node.x();
-                        const dy = node.y();
-
-                        const snappedPoints = it.points.map((v, i) =>
-                          i % 2 === 0 ? snap(v + dx) : snap(v + dy),
-                        );
-
-                        new Konva.Tween({
-                          node,
-                          duration: 0.12,
-                          x: 0,
-                          y: 0,
-                          easing: Konva.Easings.EaseOut,
-                          onFinish: () =>
-                            handleItemDragEnd(it.id, { points: snappedPoints }),
-                        }).play();
-                      }}
-                    />
-                  );
-                }
-
-                if (it.type === "text") {
-                  return (
-                    <Text
-                      id={it.id}
-                      ref={(node) => (nodeRefs.current[it.id] = node)}
-                      key={it.id}
-                      x={it.x}
-                      y={it.y}
-                      text={it.text}
-                      fontSize={it.fontSize ?? 24}
-                      fill="black"
-                      stroke={it.id === selectedId ? "dodgerblue" : undefined}
-                      strokeWidth={it.id === selectedId ? 1 : 0}
-                      draggable={tool === "selection"}
-                      onMouseDown={() => selectItem(it.id)}
-                      onDblClick={() => handleTextDoubleClick(it)}
-                      onDragEnd={(e) =>
-                        handleItemDragEnd(it.id, {
-                          x: e.target.x(),
-                          y: e.target.y(),
-                        })
-                      }
-                      onTransformEnd={(e) => {
-                        const node = e.target;
-                        const scaleY = node.scaleY();
-
-                        node.scaleX(1);
-                        node.scaleY(1);
-
-                        handleItemDragEnd(it.id, {
-                          x: snap(node.x()),
-                          y: snap(node.y()),
-                          fontSize: Math.max(
-                            8,
-                            snap((it.fontSize ?? 24) * scaleY),
-                          ),
-                        });
-                      }}
-                    />
-                  );
-                }
-                if (it.type === "image") {
-                  return (
-                    <CanvasImage
-                      key={it.id}
-                      it={it}
-                      isSelected={it.id === selectedId}
-                      tool={tool}
-                      onSelect={() => selectItem(it.id)}
-                      onSmoothDragEnd={(id, node) => {
-                        tweenToSnap(node, ({ x, y }) =>
-                          handleItemDragEnd(id, { x, y }),
-                        );
-                      }}
-                      onResize={handleItemDragEnd}
-                      nodeRef={(node) => (nodeRefs.current[it.id] = node)}
-                      snap={snap}
-                    />
-                  );
-                }
-
-                if (it.type === "deezer") {
-                  return (
-                    <DeezerCard
-                      key={it.id}
-                      it={it}
-                      isSelected={it.id === selectedId}
-                      tool={tool}
-                      onSelect={() => selectItem(it.id)}
-                      onDragEnd={(e) =>
-                        handleItemDragEnd(it.id, {
-                          x: e.target.x(),
-                          y: e.target.y(),
-                        })
-                      }
-                      nodeRef={(node) => (nodeRefs.current[it.id] = node)}
-                    />
-                  );
-                }
-
-                return null;
-              })}
-            </Layer>
-          </Stage>
-        </div>
+            {items.map((it) => {
+              if (it.type === "rect")
+                return (
+                  <Rect
+                    key={it.id}
+                    id={it.id}
+                    ref={(n) => (nodeRefs.current[it.id] = n)}
+                    x={it.x}
+                    y={it.y}
+                    width={it.w}
+                    height={it.h}
+                    fill="transparent"
+                    stroke={it.id === selectedId ? "dodgerblue" : "black"}
+                    strokeWidth={it.id === selectedId ? 2 : 1}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onTap={() => selectItem(it.id)}
+                    onDragEnd={(e) => {
+                      const n = e.target;
+                      tweenToSnap(n, ({ x, y }) =>
+                        handleItemDragEnd(it.id, { x, y }),
+                      );
+                    }}
+                    onTransformEnd={(e) => {
+                      const n = e.target,
+                        sx = n.scaleX(),
+                        sy = n.scaleY();
+                      n.scaleX(1);
+                      n.scaleY(1);
+                      handleItemDragEnd(it.id, {
+                        x: snap(n.x()),
+                        y: snap(n.y()),
+                        w: Math.max(5, snap(n.width() * sx)),
+                        h: Math.max(5, snap(n.height() * sy)),
+                      });
+                    }}
+                  />
+                );
+              if (it.type === "line")
+                return (
+                  <Line
+                    key={it.id}
+                    id={it.id}
+                    points={it.points}
+                    stroke={it.color ?? "#2d2d2d"}
+                    strokeWidth={3}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onTap={() => selectItem(it.id)}
+                    onDragEnd={(e) => {
+                      const n = e.target,
+                        dx = n.x(),
+                        dy = n.y();
+                      const pts = it.points.map((v, i) =>
+                        i % 2 === 0 ? snap(v + dx) : snap(v + dy),
+                      );
+                      new Konva.Tween({
+                        node: n,
+                        duration: 0.12,
+                        x: 0,
+                        y: 0,
+                        easing: Konva.Easings.EaseOut,
+                        onFinish: () =>
+                          handleItemDragEnd(it.id, { points: pts }),
+                      }).play();
+                    }}
+                  />
+                );
+              if (it.type === "pencil")
+                return (
+                  <Line
+                    key={it.id}
+                    id={it.id}
+                    points={it.points}
+                    stroke={it.color ?? "#2d2d2d"}
+                    strokeWidth={3}
+                    lineCap="round"
+                    lineJoin="round"
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onTap={() => selectItem(it.id)}
+                    onDragEnd={(e) => {
+                      const n = e.target,
+                        dx = n.x(),
+                        dy = n.y();
+                      const pts = it.points.map((v, i) =>
+                        i % 2 === 0 ? snap(v + dx) : snap(v + dy),
+                      );
+                      new Konva.Tween({
+                        node: n,
+                        duration: 0.12,
+                        x: 0,
+                        y: 0,
+                        easing: Konva.Easings.EaseOut,
+                        onFinish: () =>
+                          handleItemDragEnd(it.id, { points: pts }),
+                      }).play();
+                    }}
+                  />
+                );
+              if (it.type === "text")
+                return (
+                  <Text
+                    key={it.id}
+                    id={it.id}
+                    ref={(n) => (nodeRefs.current[it.id] = n)}
+                    x={it.x}
+                    y={it.y}
+                    text={it.text}
+                    fontSize={it.fontSize ?? 24}
+                    fill="black"
+                    stroke={it.id === selectedId ? "dodgerblue" : undefined}
+                    strokeWidth={it.id === selectedId ? 1 : 0}
+                    draggable={tool === "selection"}
+                    onMouseDown={() => selectItem(it.id)}
+                    onTap={() => selectItem(it.id)}
+                    onDblClick={() => handleTextDoubleClick(it)}
+                    onDblTap={() => handleTextDoubleClick(it)}
+                    onDragEnd={(e) =>
+                      handleItemDragEnd(it.id, {
+                        x: e.target.x(),
+                        y: e.target.y(),
+                      })
+                    }
+                    onTransformEnd={(e) => {
+                      const n = e.target,
+                        sy = n.scaleY();
+                      n.scaleX(1);
+                      n.scaleY(1);
+                      handleItemDragEnd(it.id, {
+                        x: snap(n.x()),
+                        y: snap(n.y()),
+                        fontSize: Math.max(8, snap((it.fontSize ?? 24) * sy)),
+                      });
+                    }}
+                  />
+                );
+              if (it.type === "image")
+                return (
+                  <CanvasImage
+                    key={it.id}
+                    it={it}
+                    isSelected={it.id === selectedId}
+                    tool={tool}
+                    onSelect={() => selectItem(it.id)}
+                    onSmoothDragEnd={(id, node) => {
+                      tweenToSnap(node, ({ x, y }) =>
+                        handleItemDragEnd(id, { x, y }),
+                      );
+                    }}
+                    onResize={handleItemDragEnd}
+                    nodeRef={(n) => (nodeRefs.current[it.id] = n)}
+                    snap={snap}
+                  />
+                );
+              if (it.type === "deezer")
+                return (
+                  <DeezerCard
+                    key={it.id}
+                    it={it}
+                    isSelected={it.id === selectedId}
+                    tool={tool}
+                    onSelect={() => selectItem(it.id)}
+                    onDragEnd={(e) =>
+                      handleItemDragEnd(it.id, {
+                        x: e.target.x(),
+                        y: e.target.y(),
+                      })
+                    }
+                    onContextMenu={(e) => handleDeezerRightClick(e, it.id)}
+                    onResize={handleItemDragEnd}
+                    snap={snap}
+                    nodeRef={(n) => (nodeRefs.current[it.id] = n)}
+                  />
+                );
+              return null;
+            })}
+          </Layer>
+        </Stage>
       </div>
     </div>
   );
