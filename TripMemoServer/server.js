@@ -22,6 +22,7 @@ import db from "./db.js";
 import { clipAnalyse } from "./clipAnalyse.js";
 import stage from "./imageStaging.js";
 import canvasDbRoutes from "./canvasDbRoutes.js";
+import canvasShareRoutes from "./canvasShareRoutes.js";
 
 import { embedImages } from "./clipChallengeEmbed.js";
 import { validateChallenge, getCompletedChallenges, ensureChallengeTable, initChallengeVectors } from "./ChallengeManager.js";
@@ -61,6 +62,7 @@ app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true, limit: "500mb" }));
 app.use(bodyParser.json({ limit: "500mb" }));
 app.use("/api/canvas", canvasDbRoutes);
+app.use("/api/canvas", canvasShareRoutes);
 
 // Serve static icons
 app.use("/icons", express.static(path.join(__dirname, "Icons")));
