@@ -1,3 +1,5 @@
+import "dotenv/config"; // must be first
+
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -6,10 +8,9 @@ import multer from "multer";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 import fs from "fs";
-
 import crypto from "crypto";
-import { uploadToR2, generateSignedUrl } from "./r2.js";
 
+import { uploadToR2, generateSignedUrl } from "./r2.js";
 import processImages from "./DataScraper.js";
 import getInterests from "./InterestReq.js";
 import getNodes from "./neoDB.js";
@@ -23,39 +24,22 @@ import { clipAnalyse } from "./clipAnalyse.js";
 import stage from "./imageStaging.js";
 import canvasDbRoutes from "./canvasDbRoutes.js";
 import canvasShareRoutes from "./canvasShareRoutes.js";
-
 import { embedImages } from "./clipChallengeEmbed.js";
-import { validateChallenge, getCompletedChallenges, ensureChallengeTable, initChallengeVectors } from "./ChallengeManager.js";
+import {
+  validateChallenge,
+  getCompletedChallenges,
+  ensureChallengeTable,
+  initChallengeVectors,
+} from "./ChallengeManager.js";
+
+import connectMongoDB from "./mongoDB.js";
+import User from "./models/User.js";
+import session from "express-session";
+import Message from "./models/Message.js";
+import GroupMessage from "./models/GroupMessage.js";
+
 ensureChallengeTable().catch(console.error);
 initChallengeVectors().catch(console.error);
-import 'dotenv/config';  // must be first
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import path from 'path';
-import multer from 'multer';
-import { fileURLToPath } from 'url';
-import cookieParser from "cookie-parser";
-
-
-import processImages from './DataScraper.js';
-import getInterests from './InterestReq.js';
-import getNodes from './neoDB.js';
-import getMemories from './MemoriesReq.js';
-import { neoConnectTest } from './neoConnectTest.js';
-import { mysqlConnectTest } from './dbConnTest.js';
-import login, { register } from "./login-register.js";
-import requireAuth from "./auth.js"
-import db from "./db.js"
-import { clipAnalyse } from './clipAnalyse.js';  
-
-
-import connectMongoDB from './mongoDB.js';
-import User from './models/User.js';
-import session from 'express-session';
-import Message from './models/Message.js';
-import crypto from 'crypto';
-import GroupMessage from './models/GroupMessage.js';
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -121,7 +105,6 @@ const upload = multer({
 
 //     const fileBuffer = req.file.buffer;
 //     const fileName = req.file.originalname;
-
 
 //     let filePath;
 //     try {
@@ -213,7 +196,7 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
 
     const clipAnalysis = await clipAnalyse(payload);
     console.log(JSON.stringify(clipAnalysis, null, 2));
-    
+
     return res.json(clipAnalysis);
   } catch (err) {
     console.error(err);
@@ -221,11 +204,10 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
   }
 });
 
-
 app.get("/debug-tags", async (req, res) => {
   const [rows] = await db.execute(
     "SELECT tags, JSON_TYPE(tags) AS t FROM memories WHERE memory_id = ?",
-    [Number(req.query.memoryId)]
+    [Number(req.query.memoryId)],
   );
   res.json(rows[0] ?? null);
 });
@@ -249,25 +231,12 @@ app.post("/interestReq", upload.none(), async (req, res) => {
   }
 });
 
-app.post("/memories", upload.none(), async (req, res) => {
-  try {
-    const result = await getMemories(req.body);
-    res.json(result);
-  } catch (err) {
-    console.error("Error in /interestReq route:", err);
-    res.status(500).json({ error: "Processing failed" });
-  }
-});
-
-
-
-
 
 //-------------------------------------
 //  REGISTER/LOGIN
 //-------------------------------------
 // app.post("/login", upload.none(), async (req, res) => {
-  app.post("/login", async (req, res) => {
+app.post("/login", upload.none(), async (req, res) => {
   const { email, username, password } = req.body;
 
   if (!password || (!username && !email)) {
@@ -284,11 +253,10 @@ app.post("/memories", upload.none(), async (req, res) => {
     maxAge: 86400000,
   });
 
-
-   return res.status(200).json(user);
+  return res.status(200).json(user);
 });
 
-//new login route 
+//new login route
 // app.post("/login", async (req, res) => {
 //   try {
 //     const { email, password } = req.body;
@@ -312,7 +280,7 @@ app.post("/memories", upload.none(), async (req, res) => {
 //     req.session.userId = user._id;
 //     req.session.username = user.username;
 
-//     res.json({ 
+//     res.json({
 //       message: "Login successful",
 //       username: user.username,
 //       userId: user._id
@@ -323,22 +291,21 @@ app.post("/memories", upload.none(), async (req, res) => {
 //   }
 // });
 
-
 //new register route
 // app.post("/register", async (req, res) => {
 //   try {
 //     const { username, email, password, firstName, lastName } = req.body;
 
 //     // Check if user already exists
-//     const existingUser = await User.findOne({ 
-//       $or: [{ email }, { username }] 
+//     const existingUser = await User.findOne({
+//       $or: [{ email }, { username }]
 //     });
 
 //     if (existingUser) {
-//       return res.status(400).json({ 
-//         error: existingUser.email === email 
-//           ? "Email already registered" 
-//           : "Username already taken" 
+//       return res.status(400).json({
+//         error: existingUser.email === email
+//           ? "Email already registered"
+//           : "Username already taken"
 //       });
 //     }
 
@@ -357,16 +324,15 @@ app.post("/memories", upload.none(), async (req, res) => {
 
 //     await newUser.save();
 
-//     res.status(201).json({ 
+//     res.status(201).json({
 //       message: "User registered successfully",
-//       userId: newUser._id 
+//       userId: newUser._id
 //     });
 //   } catch (error) {
 //     console.error("Register error:", error);
 //     res.status(500).json({ error: "Registration failed" });
 //   }
 // });
-
 
 //adding friends
 // Search users by username
@@ -380,7 +346,7 @@ app.get("/users/search", async (req, res) => {
        FROM users 
        WHERE username LIKE ? 
        LIMIT 10`,
-      [`%${query}%`]
+      [`%${query}%`],
     );
 
     res.json(rows);
@@ -413,7 +379,7 @@ app.post("/users/friend-request/:id", async (req, res) => {
       `INSERT INTO friends (user_id, friend_id, status) 
        VALUES (?, ?, 'pending')
        ON DUPLICATE KEY UPDATE status = status`,
-      [senderId, receiverId]
+      [senderId, receiverId],
     );
 
     res.json({ message: "Friend request sent" });
@@ -447,14 +413,14 @@ app.post("/users/friend-request/:id/accept", async (req, res) => {
     await db.execute(
       `UPDATE friends SET status = 'accepted' 
        WHERE user_id = ? AND friend_id = ?`,
-      [senderId, userId]
-  );
-  // Add the reverse friendship
+      [senderId, userId],
+    );
+    // Add the reverse friendship
     await db.execute(
       `INSERT INTO friends (user_id, friend_id, status)
        VALUES (?, ?, 'accepted')
        ON DUPLICATE KEY UPDATE status = 'accepted'`,
-      [userId, senderId]
+      [userId, senderId],
     );
 
     res.json({ message: "Friend request accepted" });
@@ -493,7 +459,7 @@ app.post("/users/friend-request/:id/decline", async (req, res) => {
     await db.execute(
       `DELETE FROM friends 
        WHERE user_id = ? AND friend_id = ?`,
-      [senderId, userId]
+      [senderId, userId],
     );
 
     res.json({ message: "Friend request declined" });
@@ -503,7 +469,7 @@ app.post("/users/friend-request/:id/decline", async (req, res) => {
 });
 // app.post("/users/friend-request/:id/decline", async (req, res) => {
 //   try {
-//     const { userId } = req.body; 
+//     const { userId } = req.body;
 //     const senderId = req.params.id;
 
 //     await User.findByIdAndUpdate(userId, {
@@ -525,7 +491,7 @@ app.get("/users/:id/friends", async (req, res) => {
        FROM friends f
        JOIN users u ON u.user_id = f.friend_id
        WHERE f.user_id = ? AND f.status = 'accepted'`,
-      [userId]
+      [userId],
     );
     res.json(rows);
   } catch (error) {
@@ -548,7 +514,7 @@ app.get("/users/:id/friends", async (req, res) => {
 //   try {
 
 //     const userId = req.params.id;
- 
+
 //     const [rows] = await db.execute(
 
 //       `SELECT u.id, u.username, u.first_name, u.last_name
@@ -562,9 +528,9 @@ app.get("/users/:id/friends", async (req, res) => {
 //       [userId]
 
 //     );
- 
+
 //     res.json(rows);
-//     console.log("friends" + rows) 
+//     console.log("friends" + rows)
 
 //   } catch (error) {
 
@@ -573,7 +539,6 @@ app.get("/users/:id/friends", async (req, res) => {
 //   }
 
 // });
- 
 
 // Get friend requests
 app.get("/users/:id/friend-requests", async (req, res) => {
@@ -584,7 +549,7 @@ app.get("/users/:id/friend-requests", async (req, res) => {
        FROM friends f
        JOIN users u ON u.user_id = f.user_id
        WHERE f.friend_id = ? AND f.status = 'pending'`,
-      [userId]
+      [userId],
     );
     res.json(rows);
   } catch (error) {
@@ -613,8 +578,6 @@ app.get("/users/:id/friend-requests", async (req, res) => {
 //   }
 // });
 
-
-
 // Send a message
 app.post("/messages", async (req, res) => {
   try {
@@ -638,8 +601,8 @@ app.get("/messages/:userId/:friendId", async (req, res) => {
     const messages = await Message.find({
       $or: [
         { senderId: userId, receiverId: friendId },
-        { senderId: friendId, receiverId: userId }
-      ]
+        { senderId: friendId, receiverId: userId },
+      ],
     }).sort({ createdAt: 1 });
 
     res.json(messages);
@@ -665,15 +628,12 @@ app.get("/messages/:userId/:friendId", async (req, res) => {
 //   }
 // });
 
-
-
-
 // register
 // app.post("/register", upload.none(), async (req, res) => {
 //   const {username, firstName, lastName, email, password} = req.body;
 
 app.post("/register", async (req, res) => {
-  const {username, firstName, lastName, email, password} = req.body;
+  const { username, firstName, lastName, email, password } = req.body;
 
   if (!password || (!username && !email)) {
     return res.status(400).json({ error: "Missing credentials" });
@@ -723,41 +683,48 @@ app.post("/memories", upload.none(), async (req, res) => {
   }
 });
 
-app.post("/challenge-submit", requireAuth, upload.array("images"), async (req, res) => {
-  try {
-    const taskId   = req.body.taskId;
-    const clipHint = req.body.clipHint;
-    const location = req.body.location
-      ? JSON.parse(req.body.location)   // comes in as a JSON string from FormData
-      : null;
- 
-    // Run uploaded images through CLIP to get 512-dim vectors
-    const imageVectors = await embedImages(req.files ?? []);
- 
-    console.group(`📤 /challenge-submit  •  ${taskId}`);
-    console.log("clipHint:",     clipHint);
-    console.log("location:",     location);
-    console.log("images:",       `${req.files?.length ?? 0} file(s)`);
-    console.log("vectorDims:",   imageVectors[0]?.length ?? 0);
-    console.groupEnd();
- 
-    const result = await validateChallenge({
-      userId:       req.userId,
-      taskId,
-      imageVectors,
-      location,
-    });
- 
-    res.status(result.success ? 200 : 422).json(result);
-  } catch (err) {
-    console.error("challenge-submit error:", err);
-    res.status(500).json({ success: false, reason: "server_error", message: "Server error. Please try again." });
-  }
-});
- 
+app.post(
+  "/challenge-submit",
+  requireAuth,
+  upload.array("images"),
+  async (req, res) => {
+    try {
+      const taskId = req.body.taskId;
+      const clipHint = req.body.clipHint;
+      const location = req.body.location
+        ? JSON.parse(req.body.location) // comes in as a JSON string from FormData
+        : null;
 
+      // Run uploaded images through CLIP to get 512-dim vectors
+      const imageVectors = await embedImages(req.files ?? []);
 
+      console.group(`📤 /challenge-submit  •  ${taskId}`);
+      console.log("clipHint:", clipHint);
+      console.log("location:", location);
+      console.log("images:", `${req.files?.length ?? 0} file(s)`);
+      console.log("vectorDims:", imageVectors[0]?.length ?? 0);
+      console.groupEnd();
 
+      const result = await validateChallenge({
+        userId: req.userId,
+        taskId,
+        imageVectors,
+        location,
+      });
+
+      res.status(result.success ? 200 : 422).json(result);
+    } catch (err) {
+      console.error("challenge-submit error:", err);
+      res
+        .status(500)
+        .json({
+          success: false,
+          reason: "server_error",
+          message: "Server error. Please try again.",
+        });
+    }
+  },
+);
 
 // GET /challenge-completions — fetch all completed challenges for the logged-in user
 app.get("/challenge-completions", requireAuth, async (req, res) => {
@@ -776,7 +743,7 @@ app.get("/api/deezer/search", async (req, res) => {
     if (!q) return res.status(400).json({ error: "Missing query" });
 
     const response = await fetch(
-      `https://api.deezer.com/search?q=${encodeURIComponent(q)}`
+      `https://api.deezer.com/search?q=${encodeURIComponent(q)}`,
     );
 
     const data = await response.json();
@@ -795,7 +762,6 @@ app.get("/api/deezer/search", async (req, res) => {
     res.status(500).json({ error: "Deezer fetch failed" });
   }
 });
-
 
 app.get("/api/image-proxy", async (req, res) => {
   try {
@@ -818,7 +784,7 @@ app.get("/api/image-proxy", async (req, res) => {
 
     res.set(
       "Content-Type",
-      response.headers.get("content-type") || "image/jpeg"
+      response.headers.get("content-type") || "image/jpeg",
     );
 
     res.send(Buffer.from(buffer));
@@ -842,7 +808,6 @@ app.get("/mysqlping", async (req, res) => {
   res.json(result);
 });
 
-
 // Get SOS contacts
 app.get("/sos-contacts/:userId", async (req, res) => {
   try {
@@ -851,7 +816,7 @@ app.get("/sos-contacts/:userId", async (req, res) => {
        FROM sos_contacts sc
        JOIN users u ON u.user_id = sc.friend_id
        WHERE sc.user_id = ?`,
-      [req.params.userId]
+      [req.params.userId],
     );
     res.json(rows);
   } catch (error) {
@@ -866,7 +831,7 @@ app.post("/sos-contacts", async (req, res) => {
     const { userId, friendId } = req.body;
     await db.execute(
       `INSERT IGNORE INTO sos_contacts (user_id, friend_id) VALUES (?, ?)`,
-      [userId, friendId]
+      [userId, friendId],
     );
     res.json({ message: "SOS contact added" });
   } catch (error) {
@@ -881,7 +846,7 @@ app.delete("/sos-contacts/:userId/:friendId", async (req, res) => {
     const { userId, friendId } = req.params;
     await db.execute(
       `DELETE FROM sos_contacts WHERE user_id = ? AND friend_id = ?`,
-      [userId, friendId]
+      [userId, friendId],
     );
     res.json({ message: "SOS contact removed" });
   } catch (error) {
@@ -890,7 +855,6 @@ app.delete("/sos-contacts/:userId/:friendId", async (req, res) => {
   }
 });
 
-
 // ── BUCKET LISTS ──────────────────────────────────────────
 
 // Get items for a bucket list — MUST be before /:id
@@ -898,7 +862,7 @@ app.get("/bucket-lists/:id/items", async (req, res) => {
   try {
     const [rows] = await db.execute(
       `SELECT * FROM bucket_list_items WHERE bucket_list_id = ? ORDER BY position`,
-      [req.params.id]
+      [req.params.id],
     );
     res.json(rows);
   } catch (error) {
@@ -913,11 +877,11 @@ app.post("/bucket-lists/:id/items", async (req, res) => {
     const itemId = crypto.randomUUID();
     await db.execute(
       `INSERT INTO bucket_list_items (id, bucket_list_id, type, content, position) VALUES (?, ?, ?, ?, ?)`,
-      [itemId, req.params.id, type, content, position || 0]
+      [itemId, req.params.id, type, content, position || 0],
     );
     const [rows] = await db.execute(
       `SELECT * FROM bucket_list_items WHERE id = ?`,
-      [itemId]
+      [itemId],
     );
     res.status(201).json(rows[0]);
   } catch (error) {
@@ -930,7 +894,7 @@ app.patch("/bucket-lists/:id/accessed", async (req, res) => {
   try {
     await db.execute(
       `UPDATE bucket_lists SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?`,
-      [req.params.id]
+      [req.params.id],
     );
     res.json({ message: "Last accessed updated" });
   } catch (error) {
@@ -941,10 +905,9 @@ app.patch("/bucket-lists/:id/accessed", async (req, res) => {
 // Delete item — MUST be before /:id
 app.delete("/bucket-lists/items/:itemId", async (req, res) => {
   try {
-    await db.execute(
-      `DELETE FROM bucket_list_items WHERE id = ?`,
-      [req.params.itemId]
-    );
+    await db.execute(`DELETE FROM bucket_list_items WHERE id = ?`, [
+      req.params.itemId,
+    ]);
     res.json({ message: "Item deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete item" });
@@ -955,10 +918,10 @@ app.delete("/bucket-lists/items/:itemId", async (req, res) => {
 app.patch("/bucket-lists/items/:itemId", async (req, res) => {
   try {
     const { content } = req.body;
-    await db.execute(
-      `UPDATE bucket_list_items SET content = ? WHERE id = ?`,
-      [content, req.params.itemId]
-    );
+    await db.execute(`UPDATE bucket_list_items SET content = ? WHERE id = ?`, [
+      content,
+      req.params.itemId,
+    ]);
     res.json({ message: "Item updated" });
   } catch (error) {
     res.status(500).json({ error: "Failed to update item" });
@@ -969,10 +932,10 @@ app.patch("/bucket-lists/items/:itemId", async (req, res) => {
 app.patch("/bucket-lists/items/:itemId/check", async (req, res) => {
   try {
     const { checked } = req.body;
-    await db.execute(
-      `UPDATE bucket_list_items SET checked = ? WHERE id = ?`,
-      [checked, req.params.itemId]
-    );
+    await db.execute(`UPDATE bucket_list_items SET checked = ? WHERE id = ?`, [
+      checked,
+      req.params.itemId,
+    ]);
     res.json({ message: "Item checked" });
   } catch (error) {
     res.status(500).json({ error: "Failed to check item" });
@@ -984,7 +947,7 @@ app.get("/bucket-lists/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
       `SELECT * FROM bucket_lists WHERE user_id = ? ORDER BY created_at DESC`,
-      [req.params.userId]
+      [req.params.userId],
     );
     res.json(rows);
   } catch (error) {
@@ -1000,12 +963,11 @@ app.post("/bucket-lists", async (req, res) => {
     const id = crypto.randomUUID();
     await db.execute(
       `INSERT INTO bucket_lists (id, user_id, title) VALUES (?, ?, ?)`,
-      [id, userId, title]
+      [id, userId, title],
     );
-    const [rows] = await db.execute(
-      `SELECT * FROM bucket_lists WHERE id = ?`,
-      [id]
-    );
+    const [rows] = await db.execute(`SELECT * FROM bucket_lists WHERE id = ?`, [
+      id,
+    ]);
     res.status(201).json(rows[0]);
   } catch (error) {
     console.error("Create bucket list error:", error);
@@ -1017,10 +979,10 @@ app.post("/bucket-lists", async (req, res) => {
 app.patch("/bucket-lists/:id", async (req, res) => {
   try {
     const { title } = req.body;
-    await db.execute(
-      `UPDATE bucket_lists SET title = ? WHERE id = ?`,
-      [title, req.params.id]
-    );
+    await db.execute(`UPDATE bucket_lists SET title = ? WHERE id = ?`, [
+      title,
+      req.params.id,
+    ]);
     res.json({ message: "Bucket list renamed" });
   } catch (error) {
     res.status(500).json({ error: "Failed to rename bucket list" });
@@ -1042,7 +1004,7 @@ app.get("/saved-places/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
       `SELECT * FROM saved_places WHERE user_id = ? ORDER BY created_at DESC`,
-      [req.params.userId]
+      [req.params.userId],
     );
     res.json(rows);
   } catch (error) {
@@ -1058,12 +1020,11 @@ app.post("/saved-places", async (req, res) => {
     const id = crypto.randomUUID();
     await db.execute(
       `INSERT INTO saved_places (id, user_id, name, latitude, longitude) VALUES (?, ?, ?, ?, ?)`,
-      [id, userId, name, latitude, longitude]
+      [id, userId, name, latitude, longitude],
     );
-    const [rows] = await db.execute(
-      `SELECT * FROM saved_places WHERE id = ?`,
-      [id]
-    );
+    const [rows] = await db.execute(`SELECT * FROM saved_places WHERE id = ?`, [
+      id,
+    ]);
     res.status(201).json(rows[0]);
   } catch (error) {
     console.error("Save place error:", error);
@@ -1074,10 +1035,7 @@ app.post("/saved-places", async (req, res) => {
 // Delete a saved place
 app.delete("/saved-places/:id", async (req, res) => {
   try {
-    await db.execute(
-      `DELETE FROM saved_places WHERE id = ?`,
-      [req.params.id]
-    );
+    await db.execute(`DELETE FROM saved_places WHERE id = ?`, [req.params.id]);
     res.json({ message: "Place deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete place" });
@@ -1088,10 +1046,10 @@ app.delete("/saved-places/:id", async (req, res) => {
 app.patch("/users/:userId/avatar", async (req, res) => {
   try {
     const { avatarUrl } = req.body;
-    await db.execute(
-      `UPDATE users SET avatar_url = ? WHERE user_id = ?`,
-      [avatarUrl, req.params.userId]
-    );
+    await db.execute(`UPDATE users SET avatar_url = ? WHERE user_id = ?`, [
+      avatarUrl,
+      req.params.userId,
+    ]);
     res.json({ message: "Avatar updated" });
   } catch (error) {
     console.error("Update avatar error:", error);
@@ -1107,7 +1065,7 @@ app.patch("/users/:userId/profile", async (req, res) => {
     // Check if username is taken by someone else
     const [existing] = await db.execute(
       `SELECT user_id FROM users WHERE username = ? AND user_id != ?`,
-      [username, req.params.userId]
+      [username, req.params.userId],
     );
 
     if (existing.length > 0) {
@@ -1116,7 +1074,7 @@ app.patch("/users/:userId/profile", async (req, res) => {
 
     await db.execute(
       `UPDATE users SET first_name = ?, last_name = ?, username = ? WHERE user_id = ?`,
-      [firstName, lastName, username, req.params.userId]
+      [firstName, lastName, username, req.params.userId],
     );
 
     res.json({ message: "Profile updated" });
@@ -1129,8 +1087,14 @@ app.patch("/users/:userId/profile", async (req, res) => {
 // DA GROUP CHATSSSS
 
 const GROUP_COLOURS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
+  "#96CEB4",
+  "#FFEAA7",
+  "#DDA0DD",
+  "#98D8C8",
+  "#F7DC6F",
 ];
 
 // Create a group
@@ -1139,14 +1103,16 @@ app.post("/groups", async (req, res) => {
     const { name, createdBy, memberIds } = req.body;
 
     if (memberIds.length > 7) {
-      return res.status(400).json({ error: "Max 8 members including yourself" });
+      return res
+        .status(400)
+        .json({ error: "Max 8 members including yourself" });
     }
 
     const groupId = crypto.randomUUID();
 
     await db.execute(
       `INSERT INTO group_chats (id, name, created_by) VALUES (?, ?, ?)`,
-      [groupId, name, createdBy]
+      [groupId, name, createdBy],
     );
 
     // Add all members including creator
@@ -1156,23 +1122,22 @@ app.post("/groups", async (req, res) => {
       const colour = GROUP_COLOURS[i % GROUP_COLOURS.length];
       await db.execute(
         `INSERT INTO group_members (id, group_id, user_id, colour) VALUES (?, ?, ?, ?)`,
-        [crypto.randomUUID(), groupId, memberId, colour]
+        [crypto.randomUUID(), groupId, memberId, colour],
       );
     }
 
     // Send system message
     await GroupMessage.create({
       groupId,
-      senderId: 'system',
-      senderName: 'system',
-      text: 'Group created',
-      type: 'system'
+      senderId: "system",
+      senderName: "system",
+      text: "Group created",
+      type: "system",
     });
 
-    const [group] = await db.execute(
-      `SELECT * FROM group_chats WHERE id = ?`,
-      [groupId]
-    );
+    const [group] = await db.execute(`SELECT * FROM group_chats WHERE id = ?`, [
+      groupId,
+    ]);
 
     res.status(201).json(group[0]);
   } catch (error) {
@@ -1190,7 +1155,7 @@ app.get("/groups/user/:userId", async (req, res) => {
        JOIN group_members gm ON gm.group_id = g.id
        WHERE gm.user_id = ?
        ORDER BY g.created_at DESC`,
-      [req.params.userId]
+      [req.params.userId],
     );
     res.json(rows);
   } catch (error) {
@@ -1206,7 +1171,7 @@ app.get("/groups/:groupId/members", async (req, res) => {
        FROM group_members gm
        JOIN users u ON u.user_id = gm.user_id
        WHERE gm.group_id = ?`,
-      [req.params.groupId]
+      [req.params.groupId],
     );
     res.json(rows);
   } catch (error) {
@@ -1223,7 +1188,7 @@ app.post("/groups/:groupId/members", async (req, res) => {
     // Check max members
     const [members] = await db.execute(
       `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
-      [groupId]
+      [groupId],
     );
 
     if (members[0].count >= 8) {
@@ -1233,14 +1198,15 @@ app.post("/groups/:groupId/members", async (req, res) => {
     // Assign next available colour
     const [existingColours] = await db.execute(
       `SELECT colour FROM group_members WHERE group_id = ?`,
-      [groupId]
+      [groupId],
     );
-    const usedColours = existingColours.map(r => r.colour);
-    const colour = GROUP_COLOURS.find(c => !usedColours.includes(c)) || GROUP_COLOURS[0];
+    const usedColours = existingColours.map((r) => r.colour);
+    const colour =
+      GROUP_COLOURS.find((c) => !usedColours.includes(c)) || GROUP_COLOURS[0];
 
     await db.execute(
       `INSERT INTO group_members (id, group_id, user_id, colour) VALUES (?, ?, ?, ?)`,
-      [crypto.randomUUID(), groupId, userId, colour]
+      [crypto.randomUUID(), groupId, userId, colour],
     );
 
     res.json({ message: "Member added" });
@@ -1257,22 +1223,22 @@ app.delete("/groups/:groupId/members/:userId", async (req, res) => {
 
     await db.execute(
       `DELETE FROM group_members WHERE group_id = ? AND user_id = ?`,
-      [groupId, userId]
+      [groupId, userId],
     );
 
     // Send system message
     await GroupMessage.create({
       groupId,
-      senderId: 'system',
-      senderName: 'system',
+      senderId: "system",
+      senderName: "system",
       text: `${userName} left the group`,
-      type: 'system'
+      type: "system",
     });
 
     // Delete group if no members left
     const [members] = await db.execute(
       `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
-      [groupId]
+      [groupId],
     );
 
     if (members[0].count === 0) {
@@ -1289,10 +1255,10 @@ app.delete("/groups/:groupId/members/:userId", async (req, res) => {
 app.patch("/groups/:groupId/name", async (req, res) => {
   try {
     const { name } = req.body;
-    await db.execute(
-      `UPDATE group_chats SET name = ? WHERE id = ?`,
-      [name, req.params.groupId]
-    );
+    await db.execute(`UPDATE group_chats SET name = ? WHERE id = ?`, [
+      name,
+      req.params.groupId,
+    ]);
     res.json({ message: "Group renamed" });
   } catch (error) {
     res.status(500).json({ error: "Failed to rename group" });
@@ -1308,7 +1274,7 @@ app.post("/groups/:groupId/messages", async (req, res) => {
       senderId,
       senderName,
       text,
-      type: type || 'message'
+      type: type || "message",
     });
     res.status(201).json(message);
   } catch (error) {
@@ -1320,7 +1286,7 @@ app.post("/groups/:groupId/messages", async (req, res) => {
 app.get("/groups/:groupId/messages", async (req, res) => {
   try {
     const messages = await GroupMessage.find({
-      groupId: req.params.groupId
+      groupId: req.params.groupId,
     }).sort({ createdAt: 1 });
     res.json(messages);
   } catch (error) {
@@ -1334,7 +1300,7 @@ app.get("/groups/:groupId/messages", async (req, res) => {
 connectMongoDB(); //connects to mongodb
 try {
   app.listen(PORT, () =>
-    console.log(`✅ Server running on http://localhost:${PORT}`)
+    console.log(`✅ Server running on http://localhost:${PORT}`),
   );
 } catch (err) {
   console.error("Server startup error:", err);
