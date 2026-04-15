@@ -1,0 +1,355 @@
+/* Root and Phone Shell */
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.phone-shell {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  position: relative;
+}
+
+.phone-inner {
+  width: 100%;
+  height: 100%;
+}
+
+/* Auth Page Specific */
+.auth-phone-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 700px;
+}
+
+/* Illustration Section */
+.auth-illustration {
+  background: linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%);
+  padding: 40px 20px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.signup-illustration {
+  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
+}
+
+.auth-hero-image {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-illustration-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  max-height: 180px;
+}
+
+/* Form Container */
+.auth-form-container {
+  flex: 1;
+  padding: 30px 24px 40px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-form-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 24px 0;
+  text-align: center;
+}
+
+/* Form Content */
+.auth-form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Input Wrapper */
+.auth-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a4a4a;
+  margin: 0;
+}
+
+.auth-text-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.auth-text-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.auth-text-input::placeholder {
+  color: #999999;
+}
+
+/* Password Input Container */
+.password-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-container .auth-text-input {
+  padding-right: 48px;
+}
+
+.password-eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999999;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.password-eye-toggle:hover {
+  color: #667eea;
+}
+
+.password-eye-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Auth Extras (Login Page) */
+.auth-extras {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.forgot-link {
+  font-size: 13px;
+  color: #667eea;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+.remember-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4a4a4a;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+/* Login Spacer (to match signup height) */
+.login-spacer {
+  height: 0;
+}
+
+.login-form {
+  gap: 14px;
+}
+
+/* Submit Button */
+.auth-submit-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 8px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.auth-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.auth-submit-btn:active {
+  transform: translateY(0);
+}
+
+/* Divider */
+.auth-divider-line {
+  display: flex;
+  align-items: center;
+  margin: 20px 0 16px;
+  color: #999999;
+  font-size: 13px;
+}
+
+.auth-divider-line::before,
+.auth-divider-line::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.auth-divider-line span {
+  padding: 0 12px;
+}
+
+/* Social Auth Buttons */
+.social-auth-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.social-auth-btn {
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.social-auth-btn:hover {
+  border-color: #667eea;
+  background: #f8f9ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.social-auth-btn:active {
+  transform: translateY(0);
+}
+
+/* Switch Text */
+.auth-switch-text {
+  text-align: center;
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+}
+
+.auth-switch-btn {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  transition: color 0.2s ease;
+}
+
+.auth-switch-btn:hover {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .app-root {
+    padding: 10px;
+  }
+
+  .phone-shell {
+    border-radius: 30px;
+  }
+
+  .auth-form-container {
+    padding: 24px 20px 32px;
+  }
+
+  .auth-form-title {
+    font-size: 24px;
+  }
+
+  .auth-illustration {
+    padding: 30px 16px 24px;
+    min-height: 160px;
+  }
+
+  .auth-hero-image {
+    max-width: 240px;
+  }
+
+  .auth-illustration-img {
+    max-height: 140px;
+  }
+}
+
+@media (max-width: 360px) {
+  .auth-extras {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .social-auth-btn {
+    width: 52px;
+    height: 52px;
+  }
+}
