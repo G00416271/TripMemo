@@ -6,8 +6,19 @@ import path from 'path';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import cookieParser from "cookie-parser";
+import fs from "fs";
+import crypto from 'crypto';
+import session from 'express-session';
 
+// Your teammate's imports
+import { uploadToR2, generateSignedUrl } from "./r2.js";
+import stage from "./imageStaging.js";
+import canvasDbRoutes from "./canvasDbRoutes.js";
+import canvasShareRoutes from "./canvasShareRoutes.js";
+import { embedImages } from "./clipChallengeEmbed.js";
+import { validateChallenge, getCompletedChallenges, ensureChallengeTable, initChallengeVectors } from "./ChallengeManager.js";
 
+// Your imports
 import processImages from './DataScraper.js';
 import getInterests from './InterestReq.js';
 import getNodes from './neoDB.js';
@@ -15,17 +26,16 @@ import getMemories from './MemoriesReq.js';
 import { neoConnectTest } from './neoConnectTest.js';
 import { mysqlConnectTest } from './dbConnTest.js';
 import login, { register } from "./login-register.js";
-import requireAuth from "./auth.js"
-import db from "./db.js"
-import { clipAnalyse } from './clipAnalyse.js';  
-
-
+import requireAuth from "./auth.js";
+import db from "./db.js";
+import { clipAnalyse } from './clipAnalyse.js';
 import connectMongoDB from './mongoDB.js';
 import User from './models/User.js';
-import session from 'express-session';
 import Message from './models/Message.js';
-import crypto from 'crypto';
 import GroupMessage from './models/GroupMessage.js';
+
+ensureChallengeTable().catch(console.error);
+initChallengeVectors().catch(console.error);
 
 // Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -36,32 +46,15 @@ const PORT = 5000;
 
 // Enable CORS
 app.use(cors({
-  origin: "http://localhost:5173", 
-  credentials: true
+  origin: "http://localhost:5173",
+  credentials: true,
 }));
-
-// app.options("/*", cors({
-//   origin: "http://localhost:5173",
-//   credentials: true
-// }));
 
 app.use(cookieParser());
 
-// const requireAuth = (req, res, next) => {
-//   const userId = req.cookies.session;
-//   if (!userId) return res.sendStatus(401);
-//   req.userId = userId;
-//   next();
-// };
-
-
-
 // Parse requests
-// app.use(bodyParser.urlencoded({ extended: true }));
-// app.use(bodyParser.json());`
-
-app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
-app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "500mb" }));
+app.use(bodyParser.json({ limit: "500mb" }));
 
 app.use(session({
   secret: 'tripmemo_secret',
@@ -75,11 +68,13 @@ app.use(session({
   }
 }));
 
+// Canvas routes (teammate's)
+app.use("/api/canvas", canvasDbRoutes);
+app.use("/api/canvas", canvasShareRoutes);
 
 // Serve static icons
 app.use('/icons', express.static(path.join(__dirname, 'Icons')));
 
-// GET icons (safe)
 app.get('/icons', (req, res) => {
   try {
     res.json({ message: 'Icons are available at /icons/<filename>.svg' });
@@ -90,131 +85,52 @@ app.get('/icons', (req, res) => {
 });
 
 // ---------------------------------------
-//  FILE UPLOAD ENDPOINT (DATASCRAPER)
+//  FILE UPLOAD ENDPOINT
 // ---------------------------------------
 const upload = multer({
-  storage: multer.memoryStorage()
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-
-// app.post("/process-images", upload.single("file"), async (req, res) => {
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({ error: "No file uploaded" });
-//     }
-
-//     const fileBuffer = req.file.buffer;
-//     const fileName = req.file.originalname;
-
-
-//     let filePath;
-//     try {
-//       filePath = req.file.path;
-//     } catch (err) {
-//       console.error("File path error:", err);
-//       return res.status(500).json({ error: "Upload failed" });
-//     }
-
-//     // Process images
-//     let imagesResult = {};
-//     try {
-//       imagesResult = await processImages([filePath]);
-//     } catch (err) {
-//       console.error("processImages() error:", err);
-//       return res.status(500).json({ error: "Image processing failed" });
-//     }
-
-
-//     //clip
-//     let clipAnalysis = {};
-//     try {
-//       clipAnalysis = await clipAnalyseBytes([{ name: fileName, buffer: fileBuffer }]);
-//     } catch (err) {
-//       console.error("clipAnalyseBytes() error:", err);
-//       return res.status(500).json({ error: "CLIP analysis failed" });
-//     }
-
-    
-
-
-//     // Extract tags safely
-//     let tags = [];
-//     try {
-//       tags = imagesResult.tags || [];
-//     } catch (err) {
-//       console.error("Tag extraction error:", err);
-//       tags = [];
-//     }
-
-//     // User interest matching
-//     let interestsResult = {};
-//     try {
-//       interestsResult = await getInterests(tags, req.body);
-//     } catch (err) {
-//       console.error("getInterests() error:", err);
-//       interestsResult = { error: "Interest matching failed" };
-//     }
-
-//     // Neo4j matching
-//     let neo4jResult = [];
-//     try {
-//       neo4jResult = await getNodes(interestsResult.tags || []);
-//     } catch (err) {
-//       console.error("Neo4j getNodes() error:", err);
-//       neo4jResult = [];
-//     }
-
-//     // Final combined response
-//     const finalResult = {
-//       imageAnalysis: imagesResult,
-//       matchedUserInterests: interestsResult,
-//       relatedLocations: neo4jResult
-//     };
-
-//     res.json(finalResult);
-
-//   } catch (err) {
-//     console.error("Error in /process-images route:", err);
-//     res.status(500).json({ error: "Processing failed" });
-//   }
-// });
-
-app.post("/process-images", upload.single("file"), async (req, res) => {
+// Teammate's process-images route
+app.post("/process-images", upload.array("files"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    const fileBuffer = req.file.buffer;        // bytes in memory
-    const fileName = req.file.originalname;
-
-    // CLIP (Option B)
-    let clipAnalysis = [];
-    try {
-      clipAnalysis = await clipAnalyse([{ name: fileName, buffer: fileBuffer }]);
-      console.log("CLIP analysis result:", clipAnalysis);
-    } catch (err) {
-      console.error("clipAnalyse() error:", err);
-      return res.status(500).json({ error: "CLIP analysis failed" });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
     }
-
-    // If you still want to run your old pipeline (processImages),
-    // it MUST be rewritten to accept buffers too.
-    // For now, return CLIP only:
+    const stagedImages = await stage(req.files);
+    if (!stagedImages || stagedImages.length === 0) {
+      return res.status(400).json({ error: "No images were staged" });
+    }
+    const payload = stagedImages.map((img, i) => ({
+      name: req.files[i]?.originalname || `image_${i}.jpg`,
+      data: img.buffer.toString("base64"),
+    }));
+    const clipAnalysis = await clipAnalyse(payload);
+    console.log(JSON.stringify(clipAnalysis, null, 2));
     return res.json(clipAnalysis);
-
   } catch (err) {
-    console.error("Error in /process-images route:", err);
+    console.error(err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
 
-
+app.get("/debug-tags", async (req, res) => {
+  const [rows] = await db.execute(
+    "SELECT tags, JSON_TYPE(tags) AS t FROM memories WHERE memory_id = ?",
+    [Number(req.query.memoryId)]
+  );
+  res.json(rows[0] ?? null);
+});
 
 // ---------------------------------------
 //  QUICK INTEREST CHECK
 // ---------------------------------------
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {
-    const result = await getInterests(req.body);
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const fields = req.body;
+    const result = await getInterests(tags, fields);
     res.json(result);
   } catch (err) {
     console.error("Error in /interestReq route:", err);
@@ -225,271 +141,216 @@ app.post("/interestReq", upload.none(), async (req, res) => {
 app.post("/memories", upload.none(), async (req, res) => {
   try {
     const result = await getMemories(req.body);
-    res.json(result);
+    res.json(result ?? { ok: true });
   } catch (err) {
-    console.error("Error in /interestReq route:", err);
+    console.error("Error in /memories route:", err);
     res.status(500).json({ error: "Processing failed" });
   }
 });
 
-
-
-
-
-//-------------------------------------
+// ---------------------------------------
 //  REGISTER/LOGIN
-//-------------------------------------
-// app.post("/login", upload.none(), async (req, res) => {
-  app.post("/login", async (req, res) => {
+// ---------------------------------------
+app.post("/login", upload.none(), async (req, res) => {
   const { email, username, password } = req.body;
-
   if (!password || (!username && !email)) {
     return res.status(400).json({ error: "Missing credentials" });
   }
-
   const user = await login(email, username, password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
-
   res.cookie("session", user.user_id, {
     httpOnly: true,
     sameSite: "lax",
     secure: false,
     maxAge: 86400000,
   });
-
-
-   return res.status(200).json(user);
+  return res.status(200).json(user);
 });
 
-//new login route 
-// app.post("/login", async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
+app.post("/register", upload.none(), async (req, res) => {
+  const { username, firstName, lastName, email, password } = req.body;
+  if (!password || (!username && !email)) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
+  const user = await register(username, firstName, lastName, email, password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  res.cookie("session", user.user_id, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 86400000,
+  });
+  return res.status(200).json(user);
+});
 
-//     // Find user in MongoDB
-//     const user = await User.findOne({ email });
+app.get("/me", requireAuth, async (req, res) => {
+  const [rows] = await db.execute(
+    "SELECT user_id, username, email, first_name, last_name, avatar_url, created_at FROM users WHERE user_id = ?",
+    [req.userId]
+  );
+  res.json(rows[0]);
+});
 
-//     if (!user) {
-//       return res.status(401).json({ error: "Invalid email or password" });
-//     }
+app.post("/logout", (req, res) => {
+  res.clearCookie("session", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+  });
+  res.sendStatus(200);
+});
 
-//     // Check password
-//     const bcrypt = await import('bcrypt');
-//     const isValidPassword = await bcrypt.compare(password, user.password_hash);
+// ---------------------------------------
+//  CHALLENGE ROUTES (Teammate's)
+// ---------------------------------------
+app.post("/challenge-submit", requireAuth, upload.array("images"), async (req, res) => {
+  try {
+    const taskId = req.body.taskId;
+    const clipHint = req.body.clipHint;
+    const location = req.body.location ? JSON.parse(req.body.location) : null;
+    const imageVectors = await embedImages(req.files ?? []);
+    console.group(`📤 /challenge-submit  •  ${taskId}`);
+    console.log("clipHint:", clipHint);
+    console.log("location:", location);
+    console.log("images:", `${req.files?.length ?? 0} file(s)`);
+    console.log("vectorDims:", imageVectors[0]?.length ?? 0);
+    console.groupEnd();
+    const result = await validateChallenge({
+      userId: req.userId,
+      taskId,
+      imageVectors,
+      location,
+    });
+    res.status(result.success ? 200 : 422).json(result);
+  } catch (err) {
+    console.error("challenge-submit error:", err);
+    res.status(500).json({ success: false, reason: "server_error", message: "Server error. Please try again." });
+  }
+});
 
-//     if (!isValidPassword) {
-//       return res.status(401).json({ error: "Invalid email or password" });
-//     }
+app.get("/challenge-completions", requireAuth, async (req, res) => {
+  const completions = await getCompletedChallenges(req.userId);
+  res.json(completions);
+});
 
-//     // Set session
-//     req.session.userId = user._id;
-//     req.session.username = user.username;
+app.get("/challenges/completed", requireAuth, async (req, res) => {
+  const data = await getCompletedChallenges(req.userId);
+  res.json(data);
+});
 
-//     res.json({ 
-//       message: "Login successful",
-//       username: user.username,
-//       userId: user._id
-//     });
-//   } catch (error) {
-//     console.error("Login error:", error);
-//     res.status(500).json({ error: "Login failed" });
-//   }
-// });
+app.get("/api/deezer/search", async (req, res) => {
+  try {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ error: "Missing query" });
+    const response = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}`);
+    const data = await response.json();
+    const cleaned = (data.data || []).map((track) => ({
+      id: track.id,
+      title: track.title,
+      artist: track.artist.name,
+      cover: track.album.cover_big,
+      preview: track.preview,
+    }));
+    res.json(cleaned);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Deezer fetch failed" });
+  }
+});
 
+app.get("/api/image-proxy", async (req, res) => {
+  try {
+    const url = req.query.url;
+    if (!url || typeof url !== "string" || !url.startsWith("http")) {
+      return res.status(400).send("Invalid or missing URL");
+    }
+    const response = await fetch(url);
+    if (!response.ok) return res.status(500).send("Failed to fetch image");
+    const buffer = await response.arrayBuffer();
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("❌ Proxy error:", err);
+    res.status(500).send("Proxy error");
+  }
+});
 
-//new register route
-// app.post("/register", async (req, res) => {
-//   try {
-//     const { username, email, password, firstName, lastName } = req.body;
+app.get("/r2-test", async (req, res) => {
+  try {
+    const key = "debug/test.txt";
+    await uploadToR2({ key, buffer: Buffer.from("hello r2"), contentType: "text/plain" });
+    const url = await generateSignedUrl(key);
+    res.json({ ok: true, key, url });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
 
-//     // Check if user already exists
-//     const existingUser = await User.findOne({ 
-//       $or: [{ email }, { username }] 
-//     });
-
-//     if (existingUser) {
-//       return res.status(400).json({ 
-//         error: existingUser.email === email 
-//           ? "Email already registered" 
-//           : "Username already taken" 
-//       });
-//     }
-
-//     // Hash password
-//     const bcrypt = await import('bcrypt');
-//     const password_hash = await bcrypt.hash(password, 10);
-
-//     // Create new user in MongoDB
-//     const newUser = new User({
-//       username,
-//       email,
-//       password_hash,
-//       first_name: firstName || 'User',
-//       last_name: lastName || 'User',
-//     });
-
-//     await newUser.save();
-
-//     res.status(201).json({ 
-//       message: "User registered successfully",
-//       userId: newUser._id 
-//     });
-//   } catch (error) {
-//     console.error("Register error:", error);
-//     res.status(500).json({ error: "Registration failed" });
-//   }
-// });
-
-
-//adding friends
-// Search users by username
+// ---------------------------------------
+//  FRIENDS (Your routes)
+// ---------------------------------------
 app.get("/users/search", async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) return res.json([]);
-
     const [rows] = await db.execute(
-      `SELECT user_id, username, first_name, last_name 
-       FROM users 
-       WHERE username LIKE ? 
-       LIMIT 10`,
+      `SELECT user_id, username, first_name, last_name FROM users WHERE username LIKE ? LIMIT 10`,
       [`%${query}%`]
     );
-
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: "Search failed" });
   }
 });
-// app.get("/users/search", async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) return res.json([]);
 
-//     const users = await User.find({
-//       username: { $regex: query, $options: "i" }
-//     }).select("username first_name last_name").limit(10);
-
-//     res.json(users);
-//   } catch (error) {
-//     res.status(500).json({ error: "Search failed" });
-//   }
-// });
-
-// Send a friend request
 app.post("/users/friend-request/:id", async (req, res) => {
   try {
     const { senderId } = req.body;
     const receiverId = req.params.id;
-
     await db.execute(
-      `INSERT INTO friends (user_id, friend_id, status) 
-       VALUES (?, ?, 'pending')
-       ON DUPLICATE KEY UPDATE status = status`,
+      `INSERT INTO friends (user_id, friend_id, status) VALUES (?, ?, 'pending') ON DUPLICATE KEY UPDATE status = status`,
       [senderId, receiverId]
     );
-
     res.json({ message: "Friend request sent" });
   } catch (error) {
     console.error("Friend request error:", error);
     res.status(500).json({ error: "Failed to send request" });
   }
 });
-// app.post("/users/friend-request/:id", async (req, res) => {
-//   try {
-//     const { senderId } = req.body;
-//     const receiverId = req.params.id;
 
-//     await User.findByIdAndUpdate(receiverId, {
-//       $addToSet: { friendRequests: senderId }
-//     });
-
-//     res.json({ message: "Friend request sent" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to send request" });
-//   }
-// });
-
-// Accept a friend request
 app.post("/users/friend-request/:id/accept", async (req, res) => {
   try {
     const { userId } = req.body;
     const senderId = req.params.id;
-
-    // Update the existing request to accepted
     await db.execute(
-      `UPDATE friends SET status = 'accepted' 
-       WHERE user_id = ? AND friend_id = ?`,
+      `UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?`,
       [senderId, userId]
-  );
-  // Add the reverse friendship
+    );
     await db.execute(
-      `INSERT INTO friends (user_id, friend_id, status)
-       VALUES (?, ?, 'accepted')
-       ON DUPLICATE KEY UPDATE status = 'accepted'`,
+      `INSERT INTO friends (user_id, friend_id, status) VALUES (?, ?, 'accepted') ON DUPLICATE KEY UPDATE status = 'accepted'`,
       [userId, senderId]
     );
-
     res.json({ message: "Friend request accepted" });
   } catch (error) {
     console.error("Accept error:", error);
     res.status(500).json({ error: "Failed to accept request" });
   }
 });
-// app.post("/users/friend-request/:id/accept", async (req, res) => {
-//   try {
-//     const { userId } = req.body;
-//     const senderId = req.params.id;
 
-//     // Add each other as friends
-//     await User.findByIdAndUpdate(userId, {
-//       $addToSet: { friends: senderId },
-//       $pull: { friendRequests: senderId }
-//     });
-
-//     await User.findByIdAndUpdate(senderId, {
-//       $addToSet: { friends: userId }
-//     });
-
-//     res.json({ message: "Friend request accepted" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to accept request" });
-//   }
-// });
-
-// Decline a friend request
 app.post("/users/friend-request/:id/decline", async (req, res) => {
   try {
     const { userId } = req.body;
     const senderId = req.params.id;
-
     await db.execute(
-      `DELETE FROM friends 
-       WHERE user_id = ? AND friend_id = ?`,
+      `DELETE FROM friends WHERE user_id = ? AND friend_id = ?`,
       [senderId, userId]
     );
-
     res.json({ message: "Friend request declined" });
   } catch (error) {
     res.status(500).json({ error: "Failed to decline request" });
   }
 });
-// app.post("/users/friend-request/:id/decline", async (req, res) => {
-//   try {
-//     const { userId } = req.body; 
-//     const senderId = req.params.id;
 
-//     await User.findByIdAndUpdate(userId, {
-//       $pull: { friendRequests: senderId }
-//     });
-
-//     res.json({ message: "Friend request declined" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to decline request" });
-//   }
-// });
-
-// Get friends list
 app.get("/users/:id/friends", async (req, res) => {
   try {
     const userId = req.params.id;
@@ -505,50 +366,7 @@ app.get("/users/:id/friends", async (req, res) => {
     res.status(500).json({ error: "Failed to get friends" });
   }
 });
-// app.get("/users/:id/friends", async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id)
-//       .populate("friends", "username first_name last_name");
 
-//     res.json(user.friends);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get friends" });
-//   }
-// });
-
-// app.get("/users/:id/friends", async (req, res) => {
-
-//   try {
-
-//     const userId = req.params.id;
- 
-//     const [rows] = await db.execute(
-
-//       `SELECT u.id, u.username, u.first_name, u.last_name
-
-//        FROM friends f
-
-//        JOIN users u ON u.id = f.friend_id
-
-//        WHERE f.user_id = ? AND f.status = 'accepted'`,
-
-//       [userId]
-
-//     );
- 
-//     res.json(rows);
-//     console.log("friends" + rows) 
-
-//   } catch (error) {
-
-//     res.status(500).json({ error: "Failed to get friends" });
-
-//   }
-
-// });
- 
-
-// Get friend requests
 app.get("/users/:id/friend-requests", async (req, res) => {
   try {
     const userId = req.params.id;
@@ -564,158 +382,40 @@ app.get("/users/:id/friend-requests", async (req, res) => {
     res.status(500).json({ error: "Failed to get requests" });
   }
 });
-// app.get("/users/:id/friend-requests", async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id)
-//       .populate("friendRequests", "username first_name last_name");
 
-//     res.json(user.friendRequests);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get requests" });
-//   }
-// });
-
-// app.get("/me/mongo", async (req, res) => {
-//   try {
-//     const user = await User.findOne({ username: req.session?.username })
-//       .select("_id username email");
-//     if (!user) return res.sendStatus(401);
-//     res.json(user);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get user" });
-//   }
-// });
-
-
-
-// Send a message
+// ---------------------------------------
+//  MESSAGES (Your routes)
+// ---------------------------------------
 app.post("/messages", async (req, res) => {
   try {
     const { senderId, receiverId, text } = req.body;
-
     const message = new Message({ senderId, receiverId, text });
     await message.save();
-
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ error: "Failed to send message" });
   }
 });
 
-// Get messages between two users
 app.get("/messages/:userId/:friendId", async (req, res) => {
   try {
     const { userId, friendId } = req.params;
-    console.log("Fetching messages for:", userId, friendId);
-
     const messages = await Message.find({
       $or: [
         { senderId: userId, receiverId: friendId },
         { senderId: friendId, receiverId: userId }
       ]
     }).sort({ createdAt: 1 });
-
     res.json(messages);
   } catch (error) {
     console.error("Messages error:", error);
     res.status(500).json({ error: "Failed to get messages" });
   }
 });
-// app.get("/messages/:userId/:friendId", async (req, res) => {
-//   try {
-//     const { userId, friendId } = req.params;
 
-//     const messages = await Message.find({
-//       $or: [
-//         { senderId: userId, receiverId: friendId },
-//         { senderId: friendId, receiverId: userId }
-//       ]
-//     }).sort({ createdAt: 1 });
-
-//     res.json(messages);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get messages" });
-//   }
-// });
-
-
-
-
-// register
-// app.post("/register", upload.none(), async (req, res) => {
-//   const {username, firstName, lastName, email, password} = req.body;
-
-app.post("/register", async (req, res) => {
-  const {username, firstName, lastName, email, password} = req.body;
-
-  if (!password || (!username && !email)) {
-    return res.status(400).json({ error: "Missing credentials" });
-  }
-
-  const user = await register(username, firstName, lastName, email, password);
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-
-  res.cookie("session", user.user_id, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false,
-    maxAge: 86400000,
-  });
-
-
-   return res.status(200).json(user);
-});
-
-
-//auth after login
-app.get("/me", requireAuth, async (req, res) => {
-  const [rows] = await db.execute(
-    "SELECT user_id, username, email, first_name, last_name, avatar_url, created_at FROM users WHERE user_id = ?",
-    [req.userId]
-  );
-  res.json(rows[0]);
-});
-// app.get("/me", requireAuth, async (req, res) => {
-//   const [rows] = await db.execute(
-//     "SELECT user_id, username, email FROM users WHERE user_id = ?",
-//     [req.userId]
-//   );
-
-//   res.json(rows[0]);
-// });
-
-
-
-//logout
-app.post("/logout", (req, res) => {
-  res.clearCookie("session", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false, // true in prod
-  });
-
-  res.sendStatus(200);
-});
-
-
-
-//connection tests
-app.get("/ping", (req, res) => {
-  res.send("pong");
-});
-
-app.get("/neoping", async (req, res) => {
-  const result = await neoConnectTest();
-  res.json(result);
-});
-
-app.get("/mysqlping", async (req, res) => {
-  const result = await mysqlConnectTest();
-  res.json(result);
-});
-
-
-// Get SOS contacts
+// ---------------------------------------
+//  SOS CONTACTS (Your routes)
+// ---------------------------------------
 app.get("/sos-contacts/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -732,7 +432,6 @@ app.get("/sos-contacts/:userId", async (req, res) => {
   }
 });
 
-// Add SOS contact
 app.post("/sos-contacts", async (req, res) => {
   try {
     const { userId, friendId } = req.body;
@@ -747,7 +446,6 @@ app.post("/sos-contacts", async (req, res) => {
   }
 });
 
-// Remove SOS contact
 app.delete("/sos-contacts/:userId/:friendId", async (req, res) => {
   try {
     const { userId, friendId } = req.params;
@@ -762,10 +460,9 @@ app.delete("/sos-contacts/:userId/:friendId", async (req, res) => {
   }
 });
 
-
-// ── BUCKET LISTS ──────────────────────────────────────────
-
-// Get items for a bucket list — MUST be before /:id
+// ---------------------------------------
+//  BUCKET LISTS (Your routes)
+// ---------------------------------------
 app.get("/bucket-lists/:id/items", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -778,7 +475,6 @@ app.get("/bucket-lists/:id/items", async (req, res) => {
   }
 });
 
-// Add item to bucket list — MUST be before /:id
 app.post("/bucket-lists/:id/items", async (req, res) => {
   try {
     const { type, content, position } = req.body;
@@ -797,7 +493,6 @@ app.post("/bucket-lists/:id/items", async (req, res) => {
   }
 });
 
-// Update last accessed — MUST be before /:id
 app.patch("/bucket-lists/:id/accessed", async (req, res) => {
   try {
     await db.execute(
@@ -810,7 +505,6 @@ app.patch("/bucket-lists/:id/accessed", async (req, res) => {
   }
 });
 
-// Delete item — MUST be before /:id
 app.delete("/bucket-lists/items/:itemId", async (req, res) => {
   try {
     await db.execute(
@@ -823,7 +517,6 @@ app.delete("/bucket-lists/items/:itemId", async (req, res) => {
   }
 });
 
-// Update item content — MUST be before /:id
 app.patch("/bucket-lists/items/:itemId", async (req, res) => {
   try {
     const { content } = req.body;
@@ -837,7 +530,6 @@ app.patch("/bucket-lists/items/:itemId", async (req, res) => {
   }
 });
 
-// Check item — MUST be before /:id
 app.patch("/bucket-lists/items/:itemId/check", async (req, res) => {
   try {
     const { checked } = req.body;
@@ -851,7 +543,6 @@ app.patch("/bucket-lists/items/:itemId/check", async (req, res) => {
   }
 });
 
-// Get all bucket lists for a user
 app.get("/bucket-lists/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -865,7 +556,6 @@ app.get("/bucket-lists/:userId", async (req, res) => {
   }
 });
 
-// Create a bucket list
 app.post("/bucket-lists", async (req, res) => {
   try {
     const { userId, title } = req.body;
@@ -885,7 +575,6 @@ app.post("/bucket-lists", async (req, res) => {
   }
 });
 
-// Rename a bucket list
 app.patch("/bucket-lists/:id", async (req, res) => {
   try {
     const { title } = req.body;
@@ -899,7 +588,6 @@ app.patch("/bucket-lists/:id", async (req, res) => {
   }
 });
 
-// Delete a bucket list
 app.delete("/bucket-lists/:id", async (req, res) => {
   try {
     await db.execute(`DELETE FROM bucket_lists WHERE id = ?`, [req.params.id]);
@@ -909,7 +597,9 @@ app.delete("/bucket-lists/:id", async (req, res) => {
   }
 });
 
-// Get saved places for a user
+// ---------------------------------------
+//  SAVED PLACES (Your routes)
+// ---------------------------------------
 app.get("/saved-places/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -923,7 +613,6 @@ app.get("/saved-places/:userId", async (req, res) => {
   }
 });
 
-// Save a place (for maps)
 app.post("/saved-places", async (req, res) => {
   try {
     const { userId, name, latitude, longitude } = req.body;
@@ -943,7 +632,6 @@ app.post("/saved-places", async (req, res) => {
   }
 });
 
-// Delete a saved place
 app.delete("/saved-places/:id", async (req, res) => {
   try {
     await db.execute(
@@ -956,7 +644,9 @@ app.delete("/saved-places/:id", async (req, res) => {
   }
 });
 
-// Update avatar
+// ---------------------------------------
+//  PROFILE & AVATAR (Your routes)
+// ---------------------------------------
 app.patch("/users/:userId/avatar", async (req, res) => {
   try {
     const { avatarUrl } = req.body;
@@ -971,26 +661,20 @@ app.patch("/users/:userId/avatar", async (req, res) => {
   }
 });
 
-// Update profile
 app.patch("/users/:userId/profile", async (req, res) => {
   try {
     const { firstName, lastName, username } = req.body;
-
-    // Check if username is taken by someone else
     const [existing] = await db.execute(
       `SELECT user_id FROM users WHERE username = ? AND user_id != ?`,
       [username, req.params.userId]
     );
-
     if (existing.length > 0) {
       return res.status(400).json({ error: "Username already exists" });
     }
-
     await db.execute(
       `UPDATE users SET first_name = ?, last_name = ?, username = ? WHERE user_id = ?`,
       [firstName, lastName, username, req.params.userId]
     );
-
     res.json({ message: "Profile updated" });
   } catch (error) {
     console.error("Update profile error:", error);
@@ -998,30 +682,25 @@ app.patch("/users/:userId/profile", async (req, res) => {
   }
 });
 
-// DA GROUP CHATSSSS
-
+// ---------------------------------------
+//  GROUP CHATS (Your routes)
+// ---------------------------------------
 const GROUP_COLOURS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
   '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
 ];
 
-// Create a group
 app.post("/groups", async (req, res) => {
   try {
     const { name, createdBy, memberIds } = req.body;
-
     if (memberIds.length > 7) {
       return res.status(400).json({ error: "Max 8 members including yourself" });
     }
-
     const groupId = crypto.randomUUID();
-
     await db.execute(
       `INSERT INTO group_chats (id, name, created_by) VALUES (?, ?, ?)`,
       [groupId, name, createdBy]
     );
-
-    // Add all members including creator
     const allMembers = [createdBy, ...memberIds];
     for (let i = 0; i < allMembers.length; i++) {
       const memberId = allMembers[i];
@@ -1031,8 +710,6 @@ app.post("/groups", async (req, res) => {
         [crypto.randomUUID(), groupId, memberId, colour]
       );
     }
-
-    // Send system message
     await GroupMessage.create({
       groupId,
       senderId: 'system',
@@ -1040,12 +717,10 @@ app.post("/groups", async (req, res) => {
       text: 'Group created',
       type: 'system'
     });
-
     const [group] = await db.execute(
       `SELECT * FROM group_chats WHERE id = ?`,
       [groupId]
     );
-
     res.status(201).json(group[0]);
   } catch (error) {
     console.error("Create group error:", error);
@@ -1053,7 +728,6 @@ app.post("/groups", async (req, res) => {
   }
 });
 
-// Get groups for a user
 app.get("/groups/user/:userId", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -1070,7 +744,6 @@ app.get("/groups/user/:userId", async (req, res) => {
   }
 });
 
-// Get group members
 app.get("/groups/:groupId/members", async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -1086,53 +759,41 @@ app.get("/groups/:groupId/members", async (req, res) => {
   }
 });
 
-// Add member to group
 app.post("/groups/:groupId/members", async (req, res) => {
   try {
     const { userId } = req.body;
     const { groupId } = req.params;
-
-    // Check max members
     const [members] = await db.execute(
       `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
       [groupId]
     );
-
     if (members[0].count >= 8) {
       return res.status(400).json({ error: "Group is full (max 8 members)" });
     }
-
-    // Assign next available colour
     const [existingColours] = await db.execute(
       `SELECT colour FROM group_members WHERE group_id = ?`,
       [groupId]
     );
     const usedColours = existingColours.map(r => r.colour);
     const colour = GROUP_COLOURS.find(c => !usedColours.includes(c)) || GROUP_COLOURS[0];
-
     await db.execute(
       `INSERT INTO group_members (id, group_id, user_id, colour) VALUES (?, ?, ?, ?)`,
       [crypto.randomUUID(), groupId, userId, colour]
     );
-
     res.json({ message: "Member added" });
   } catch (error) {
     res.status(500).json({ error: "Failed to add member" });
   }
 });
 
-// Leave group
 app.delete("/groups/:groupId/members/:userId", async (req, res) => {
   try {
     const { groupId, userId } = req.params;
     const { userName } = req.body;
-
     await db.execute(
       `DELETE FROM group_members WHERE group_id = ? AND user_id = ?`,
       [groupId, userId]
     );
-
-    // Send system message
     await GroupMessage.create({
       groupId,
       senderId: 'system',
@@ -1140,24 +801,19 @@ app.delete("/groups/:groupId/members/:userId", async (req, res) => {
       text: `${userName} left the group`,
       type: 'system'
     });
-
-    // Delete group if no members left
     const [members] = await db.execute(
       `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
       [groupId]
     );
-
     if (members[0].count === 0) {
       await db.execute(`DELETE FROM group_chats WHERE id = ?`, [groupId]);
     }
-
     res.json({ message: "Left group" });
   } catch (error) {
     res.status(500).json({ error: "Failed to leave group" });
   }
 });
 
-// Rename group
 app.patch("/groups/:groupId/name", async (req, res) => {
   try {
     const { name } = req.body;
@@ -1171,7 +827,6 @@ app.patch("/groups/:groupId/name", async (req, res) => {
   }
 });
 
-// Send group message
 app.post("/groups/:groupId/messages", async (req, res) => {
   try {
     const { senderId, senderName, text, type } = req.body;
@@ -1188,7 +843,6 @@ app.post("/groups/:groupId/messages", async (req, res) => {
   }
 });
 
-// Get group messages
 app.get("/groups/:groupId/messages", async (req, res) => {
   try {
     const messages = await GroupMessage.find({
@@ -1201,9 +855,24 @@ app.get("/groups/:groupId/messages", async (req, res) => {
 });
 
 // ---------------------------------------
+//  CONNECTION TESTS
+// ---------------------------------------
+app.get("/ping", (req, res) => res.send("pong"));
+
+app.get("/neoping", async (req, res) => {
+  const result = await neoConnectTest();
+  res.json(result);
+});
+
+app.get("/mysqlping", async (req, res) => {
+  const result = await mysqlConnectTest();
+  res.json(result);
+});
+
+// ---------------------------------------
 //  START SERVER
 // ---------------------------------------
-connectMongoDB(); //connects to mongodb
+connectMongoDB();
 try {
   app.listen(PORT, () =>
     console.log(`✅ Server running on http://localhost:${PORT}`)
@@ -1212,8 +881,5 @@ try {
   console.error("Server startup error:", err);
 }
 
-
-
-
 //notes: 
-// Strip metadata from Client side. 
+// Strip metadata from Client side.
