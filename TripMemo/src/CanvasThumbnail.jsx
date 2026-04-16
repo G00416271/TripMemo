@@ -236,44 +236,8 @@ export default function CanvasThumbnail({
         </div>
       )}
 
-      {/* ── bottom bar overlay ── */}
-      <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        background: dark ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.82)",
-        backdropFilter: "blur(10px)",
-        borderTop: dark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.06)",
-        padding: "6px 10px",
-        display: "flex", alignItems: "center", gap: 6,
-      }}>
-        <span style={{
-          flex: 1, minWidth: 0,
-          fontSize: 12, fontWeight: 600,
-          color: dark ? "#e8e0f5" : "#1a1a2e",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          {memoryTitle || data?.memoryTitle || "Canvas"}
-        </span>
 
-        {showShareBtn && (
-          <button style={iconBtn} onClick={handleShare} title="Copy share link">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M5 8L8 5M7.5 2.5L9 1a2.12 2.12 0 013 3L10.5 5.5a2.12 2.12 0 01-3 0M5.5 7.5a2.12 2.12 0 01-3 0L1 6a2.12 2.12 0 013-3L5.5 4.5"
-                stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            </svg>
-          </button>
-        )}
-
-        {showExportBtn && (
-          <button style={iconBtn} onClick={handleExport} title="Export PNG">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M6.5 1v7.5M4 6.5L6.5 9l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M1.5 10.5h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* ── VIEW ONLY badge (top-right) ── */}
+      {/* ── VIEW ONLY badge (top-right) ──
       <div style={{
         position: "absolute", top: 8, right: 8,
         background: dark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.8)",
@@ -291,7 +255,7 @@ export default function CanvasThumbnail({
           <path d="M2.5 3.5V2.5a1.5 1.5 0 013 0v1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
         </svg>
         VIEW ONLY
-      </div>
+      </div> */}
 
       {/* ── toast ── */}
       {toastMsg && (
