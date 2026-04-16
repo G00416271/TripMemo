@@ -1,15 +1,4 @@
-// src/SideMenu.jsx
-
-function SideMenu({ isOpen,
-   onClose,
-  onLogout={handleLogout},
-  onProfile,
-  onSettings, })
-  
-  
-  
-  
-  {
+function SideMenu({ isOpen, onClose, onLogout, onProfile, onSettings, avatarUrl, userName, userEmail }) {
   return (
     <div
       className={`side-menu-overlay ${isOpen ? "open" : ""}`}
@@ -17,10 +6,26 @@ function SideMenu({ isOpen,
     >
       <div
         className="side-menu"
-        onClick={(e) => e.stopPropagation()} // don't close when clicking inside
-        on
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="side-menu-header">
+
+
+
+      <div className="side-menu-header">
+  <img
+    className="side-menu-avatar"
+    src={avatarUrl}
+    alt="Profile"
+  />
+  <div>
+    <p className="side-menu-name">Hello, {userName}</p>
+    <p className="side-menu-email">{userEmail}</p>
+  </div>
+</div>
+
+
+
+        {/* <div className="side-menu-header">
           <img
             className="side-menu-avatar"
             src="https://www.pngitem.com/pimgs/m/146-1468479_my-profile-icon-blank-profile-picture-circle-hd.png"
@@ -30,12 +35,12 @@ function SideMenu({ isOpen,
             <p className="side-menu-name">Hello, User</p>
             <p className="side-menu-email">user@gmail.com</p>
           </div>
-        </div>
+        </div> */}
 
         <div className="side-menu-section">
           <p className="side-menu-section-title">Account</p>
-          <button className="side-menu-item">Profile</button>
-          <button className="side-menu-item">Settings</button>
+          <button className="side-menu-item" onClick={onProfile}>Profile</button>
+          <button className="side-menu-item" onClick={onSettings}>Settings</button>
         </div>
 
         <div className="side-menu-section">
@@ -45,7 +50,7 @@ function SideMenu({ isOpen,
         </div>
 
         <div className="side-menu-section">
-          <button className="side-menu-item danger" onClick={onLogout} >Log out</button>
+          <button className="side-menu-item danger" onClick={onLogout}>Log out</button>
         </div>
       </div>
     </div>
@@ -53,3 +58,75 @@ function SideMenu({ isOpen,
 }
 
 export default SideMenu;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // src/SideMenu.jsx
+
+// function SideMenu({ isOpen,
+//    onClose,
+//   onLogout={handleLogout},
+//   onProfile,
+//   onSettings, })
+  
+  
+  
+  
+//   {
+//   return (
+//     <div
+//       className={`side-menu-overlay ${isOpen ? "open" : ""}`}
+//       onClick={onClose}
+//     >
+//       <div
+//         className="side-menu"
+//         onClick={(e) => e.stopPropagation()} // don't close when clicking inside
+//         on
+//       >
+//         <div className="side-menu-header">
+//           <img
+//             className="side-menu-avatar"
+//             src="https://www.pngitem.com/pimgs/m/146-1468479_my-profile-icon-blank-profile-picture-circle-hd.png"
+//             alt="Profile"
+//           />
+//           <div>
+//             <p className="side-menu-name">Hello, User</p>
+//             <p className="side-menu-email">user@gmail.com</p>
+//           </div>
+//         </div>
+
+//         <div className="side-menu-section">
+//           <p className="side-menu-section-title">Account</p>
+//           <button className="side-menu-item">Profile</button>
+//           <button className="side-menu-item">Settings</button>
+//         </div>
+
+//         <div className="side-menu-section">
+//           <p className="side-menu-section-title">App</p>
+//           <button className="side-menu-item">Privacy &amp; Security</button>
+//           <button className="side-menu-item">Help &amp; Support</button>
+//         </div>
+
+//         <div className="side-menu-section">
+//           <button className="side-menu-item danger" onClick={onLogout} >Log out</button>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// export default SideMenu;

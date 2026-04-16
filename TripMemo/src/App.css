@@ -1064,3 +1064,45 @@ body {
     padding-bottom: max(calc(var(--bottom-nav-height) + 50px), calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 20px));
   }*/
 } 
+
+/* ─── Bucket List ───────────────────────────────────────── */
+.bList-card {
+  flex-shrink: 0;
+  width: 138px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(26, 22, 37, 0.06);
+  box-shadow: var(--shadow-card);
+  transition: var(--transition);
+  cursor: pointer;
+}
+.bList-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(178, 75, 243, 0.25);
+  box-shadow: 0 10px 28px rgba(178, 75, 243, 0.14);
+}
+
+.bList-image {
+  height: 100px;
+  background: linear-gradient(135deg, #e8d5f5 0%, #d4c4f0 100%);
+  position: relative;
+}
+.bList-image::before {
+  content: '✦ ★ ✦';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  letter-spacing: 5px;
+  color: rgba(178, 75, 243, 0.5);
+}
+
+.bList-info { padding: 10px 12px 12px; }
+.bList-info h3 {
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.bList-info p { font-size: 11px; color: var(--text-soft); margin-top: 2px; font-weight: 500; }
