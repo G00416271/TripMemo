@@ -2,24 +2,15 @@
 //
 // Validates challenge submissions using:
 //   1. Cosine similarity between submitted CLIP image vectors (512-dim ViT-B/32)
-//      and reference CLIP TEXT vectors for each landmark description.
-//      Text vectors are generated once at startup — no need to visit the landmarks
-//      to capture reference photos.
+//      and reference CLIP TEXT vectors loaded from challenges_features.pt via
+//      clipChallenge.py at startup. No live encoding needed.
 //   2. Haversine distance between submitted GPS and the known landmark coords.
-//
-// Both checks must pass (except galway_anything which skips the image check).
 
-import db          from "./db.js";
-import { embedText } from "./clipChallengeEmbed.js";
+import db            from "./db.js";
+import { embedText } from "./clipChallengeEmbed.js";   // Node↔Python bridge
 
-// ─── Tuning knobs ─────────────────────────────────────────────────────────────
-const SIMILARITY_THRESHOLD = 0.20;   // CLIP image↔text similarity; typically 0.18–0.30
-const LOCATION_RADIUS_M    = 500;    // metres — tighten once tested
-
-// ─── Challenge definitions ────────────────────────────────────────────────────
-// textPrompts: one or more natural-language descriptions of what a correct photo
-// should look like. CLIP will embed these at startup and compare against the
-// submitted image embeddings. Multiple prompts = better recall.
+const SIMILARITY_THRESHOLD = 0.20;
+const LOCATION_RADIUS_M    = 500;
 
 const CHALLENGE_DEFS = {
   paris_eiffel: {
@@ -31,7 +22,6 @@ const CHALLENGE_DEFS = {
       "Eiffel Tower from below looking up",
     ],
   },
-
   paris_arc: {
     label:       "Arc de Triomphe",
     landmark:    { lat: 48.873792, lng: 2.295028 },
@@ -40,7 +30,6 @@ const CHALLENGE_DEFS = {
       "Arc de Triomphe monument at Place Charles de Gaulle",
     ],
   },
-
   dublin_spire: {
     label:       "The Spire",
     landmark:    { lat: 53.349862, lng: -6.260179 },
@@ -50,7 +39,6 @@ const CHALLENGE_DEFS = {
       "Monument of Light Dublin city centre",
     ],
   },
-
   dublin_liffey: {
     label:       "River Liffey",
     landmark:    { lat: 53.346109, lng: -6.259814 },
@@ -60,7 +48,6 @@ const CHALLENGE_DEFS = {
       "River Liffey with Dublin city quays",
     ],
   },
-
   london_bigben: {
     label:       "Big Ben",
     landmark:    { lat: 51.500729, lng: -0.124625 },
@@ -70,7 +57,6 @@ const CHALLENGE_DEFS = {
       "Big Ben and Houses of Parliament",
     ],
   },
-
   galway_anything: {
     label:       "Anything (Test)",
     landmark:    { lat: 53.270962, lng: -9.056791 },
@@ -78,16 +64,13 @@ const CHALLENGE_DEFS = {
   },
 };
 
-// ─── Cached text vectors (populated at startup) ───────────────────────────────
-// Shape: { [taskId]: number[][] }  — one 512-dim vector per prompt
+// ─── Cached text vectors ──────────────────────────────────────────────────────
+// { [taskId]: number[][] | null }
+// Populated once at startup from challenges_features.pt via clipChallenge.py.
 let TEXT_VECTORS = null;
 
-/**
- * Call once at server startup.
- * Embeds all text prompts via CLIP so they're ready for comparison.
- */
 export async function initChallengeVectors() {
-  TEXT_VECTORS = {};
+  TEXT_VECTORS = {};   // ← must be {} not null so keys can be assigned in the loop
 
   for (const [taskId, def] of Object.entries(CHALLENGE_DEFS)) {
     if (!def.textPrompts) {
@@ -96,11 +79,14 @@ export async function initChallengeVectors() {
     }
 
     try {
+      // embedText sends { mode: "text", texts: [...] } to clipChallenge.py,
+      // which looks each prompt up in challenges_features.pt and returns the
+      // cached 512-dim vectors. Falls back to live CLIP only on a cache miss.
       const vecs = await embedText(def.textPrompts);
       TEXT_VECTORS[taskId] = vecs;
       console.log(`📎 CLIP text vectors ready for ${taskId} (${vecs.length} prompts)`);
     } catch (err) {
-      console.error(`❌ Failed to embed text for ${taskId}:`, err.message);
+      console.error(`❌ Failed to load vectors for ${taskId}:`, err.message);
       TEXT_VECTORS[taskId] = null;
     }
   }
@@ -120,7 +106,6 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
-/** Best similarity: any submitted image vector vs any reference text vector */
 function bestSimilarity(imageVectors, textVectors) {
   if (!imageVectors || !textVectors) return 0;
   let best = 0;
@@ -196,12 +181,6 @@ export async function getCompletedChallenges(userId) {
 
 // ─── Main validator ───────────────────────────────────────────────────────────
 
-/**
- * validateChallenge({ userId, taskId, imageVectors, location })
- *
- * imageVectors: number[][] — 512-dim CLIP vectors from embedImages() in the route handler
- * location:     { latitude, longitude, accuracy }
- */
 export async function validateChallenge({ userId, taskId, imageVectors, location }) {
   if (!TEXT_VECTORS) {
     return { success: false, reason: "server_not_ready", message: "Challenge system is still initialising. Try again in a moment." };
@@ -237,7 +216,6 @@ export async function validateChallenge({ userId, taskId, imageVectors, location
 
   // ── CLIP image ↔ text similarity check ──────────────────────────────────
   let similarity = null;
-
   const refVectors = TEXT_VECTORS[taskId];
 
   if (refVectors != null) {
@@ -246,7 +224,6 @@ export async function validateChallenge({ userId, taskId, imageVectors, location
     }
 
     similarity = bestSimilarity(imageVectors, refVectors);
-
     console.log(`🔍 ${taskId} | similarity: ${similarity.toFixed(4)} | threshold: ${SIMILARITY_THRESHOLD} | dist: ${Math.round(distanceM)}m`);
 
     if (similarity < SIMILARITY_THRESHOLD) {

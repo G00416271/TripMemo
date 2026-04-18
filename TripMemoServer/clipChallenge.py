@@ -10,6 +10,8 @@ Reads a JSON payload from stdin with a "mode" field:
   Text mode:
     { "mode": "text", "texts": ["a photo of the Eiffel Tower", ...] }
     Returns: [[...512 floats...], ...]  — one L2-normalised vector per prompt
+              Vectors are looked up from precomputed challenges_features.pt.
+              Falls back to live CLIP encoding if a prompt isn't found.
 
 Both use CLIP ViT-B/32. Vectors are L2-normalised so cosine similarity == dot product.
 """
@@ -27,6 +29,22 @@ from PIL import Image, UnidentifiedImageError
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 model.eval()
+
+# ── Load precomputed challenge text vectors ────────────────────────────────────
+_CHALLENGES_PT = "challenges_features.pt"
+
+try:
+    _pt_data        = torch.load(_CHALLENGES_PT, map_location=device)
+    _cached_labels  = _pt_data["labels"]       # list[str]
+    _cached_feats   = _pt_data["features"]     # Tensor (N, 512), already L2-normalised
+    # Build a fast label → row-index lookup
+    _label_index    = {label: i for i, label in enumerate(_cached_labels)}
+    sys.stderr.write(f"[clipChallenge] loaded {len(_cached_labels)} cached text vectors from {_CHALLENGES_PT}\n")
+except Exception as e:
+    sys.stderr.write(f"[clipChallenge] WARNING: could not load {_CHALLENGES_PT}: {e}\n")
+    _cached_labels  = []
+    _cached_feats   = None
+    _label_index    = {}
 
 
 @torch.inference_mode()
@@ -47,17 +65,31 @@ def embed_images(image_list: list) -> list[list[float]]:
 
 
 @torch.inference_mode()
+def _live_embed_text(text: str) -> list[float]:
+    """Encode a single text prompt with CLIP (fallback for cache misses)."""
+    tokens = clip.tokenize([text]).to(device)
+    feat   = model.encode_text(tokens)
+    feat   = feat / feat.norm(dim=-1, keepdim=True)
+    return feat[0].cpu().tolist()
+
+
+@torch.inference_mode()
 def embed_texts(texts: list[str]) -> list[list[float]]:
     vectors = []
     for text in texts:
-        try:
-            tokens = clip.tokenize([text]).to(device)
-            feat   = model.encode_text(tokens)
-            feat   = feat / feat.norm(dim=-1, keepdim=True)
-            vectors.append(feat[0].cpu().tolist())
-        except Exception as e:
-            sys.stderr.write(f"[clipChallenge] text embed failed for '{text}': {e}\n")
-            vectors.append([0.0] * 512)
+        if text in _label_index:
+            # Fast path — return the precomputed vector
+            row  = _label_index[text]
+            feat = _cached_feats[row].cpu().tolist()
+            vectors.append(feat)
+        else:
+            # Slow path — encode live and warn so you can add it to the .pt
+            sys.stderr.write(f"[clipChallenge] cache miss, encoding live: '{text}'\n")
+            try:
+                vectors.append(_live_embed_text(text))
+            except Exception as e:
+                sys.stderr.write(f"[clipChallenge] text embed failed for '{text}': {e}\n")
+                vectors.append([0.0] * 512)
     return vectors
 
 

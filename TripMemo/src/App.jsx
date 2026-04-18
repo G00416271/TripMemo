@@ -36,14 +36,7 @@ import BucketListEditor from "./BucketListEditor";
 import BucketListModal from "./BucketListModal";
 import ProfilePage from "./ProfilePage";
 import GroupChat from "./GroupChat";
-
-const scrapbooks = [
-  { id: 1, city: "Paris", date: "27/08/2025", country: "France" },
-  { id: 2, city: "Brussels", date: "06/09/2025", country: "Belgium" },
-  { id: 3, city: "Barcelona", date: "15/09/2025", country: "Spain" },
-  { id: 4, city: "Amsterdam", date: "22/09/2025", country: "Netherlands" },
-  { id: 5, city: "Rome", date: "01/10/2025", country: "Italy" },
-];
+import CanvasThumbnail from "./CanvasThumbnail";
 
 const recentTrips = [
   { id: 1, destination: "London", days: 5, rating: 4.8, image: "gradient1" },
@@ -94,6 +87,9 @@ function App() {
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
 
+  // Real scrapbooks (memories) for the home screen
+  const [scrapbooks, setScrapbooks] = useState([]);
+
   useEffect(() => {
     fetch("http://localhost:5000/me", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
@@ -101,32 +97,35 @@ function App() {
         if (!user) return;
         setUserName(user.username);
         setUserId(user.user_id);
-        setAvatarUrl(user.avatar_url);
         setUserProfile(user);
         setIsAuthenticated(true);
-        // fetch(`http://localhost:5000/users/${user.user_id}/friends`, { credentials: "include" })
-        //   .then(res => res.json())
-        //   .then(data => setFriends(data));
-        // fetch(`http://localhost:5000/sos-contacts/${user.user_id}`, { credentials: "include" })
-        //   .then(res => res.json())
-        //   .then(data => setSosContacts(data));
-        // fetch(`http://localhost:5000/bucket-lists/${user.user_id}`, { credentials: "include" })
-        //   .then(res => res.json())
-        //   .then(data => setBucketLists(data));
-        // fetch(`http://localhost:5000/saved-places/${user.user_id}`, { credentials: "include" })
-        //   .then(res => res.json())
-        //   .then(data => setSavedPlaces(data));
-        // fetch(`http://localhost:5000/groups/user/${user.user_id}`, { credentials: "include" })
-        //   .then(res => res.json())
-        //   .then(data => setGroups(data));
+        fetch(`http://localhost:5000/users/${user.user_id}/friends`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => setFriends(data));
+        fetch(`http://localhost:5000/sos-contacts/${user.user_id}`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => setSosContacts(data));
+        fetch(`http://localhost:5000/bucket-lists/${user.user_id}`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => setBucketLists(data));
+        fetch(`http://localhost:5000/saved-places/${user.user_id}`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => setSavedPlaces(data));
+        fetch(`http://localhost:5000/groups/user/${user.user_id}`, { credentials: "include" })
+          .then(res => res.json())
+          .then(data => setGroups(data));
+
+        // Fetch real memories for scrapbooks section
+        const fd = new FormData();
+        fd.append("action", "fetch");
+        fd.append("user_id", user.user_id);
+        fetch("http://localhost:5000/memories", { method: "POST", body: fd })
+          .then(res => res.json())
+          .then(data => setScrapbooks(data))
+          .catch(err => console.error("Failed to fetch scrapbooks:", err));
       });
   }, []);
 
-  useEffect(() => {
-    console.log("activeTab:", activeTab);
-  }, [activeTab]);
-
-  // Share page — public, no auth needed
   const shareMatch = window.location.pathname.match(/^\/share\/(\d+)$/);
   if (shareMatch) {
     return <ViewOnlyCanvas memoryId={Number(shareMatch[1])} />;
@@ -165,6 +164,7 @@ function App() {
             setBucketLists([]);
             setAvatarUrl(null);
             setUserProfile(null);
+            setScrapbooks([]);
             setUserName(name);
             setUserId(id);
             setIsAuthenticated(true);
@@ -189,6 +189,7 @@ function App() {
     setSelectedFriend(null);
     setShowSignup(false);
     setGroups([]);
+    setScrapbooks([]);
   };
 
   const fetchFriends = async (id) => {
@@ -335,19 +336,30 @@ function App() {
     setActiveTab("friends");
   };
 
-  const handleSearch = async (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    if (!query.trim()) { setSearchResults([]); return; }
-    try {
-      const res = await fetch(`http://localhost:5000/users/search?query=${query}`, { credentials: "include" });
-      const data = await res.json();
-      setSearchResults(data);
-    } catch (err) {
-      console.error("Search failed:", err);
-    }
-  };
+const handleSearch = async (e) => {
+  const query = e.target.value;
+  setSearchQuery(query);
 
+  if (!query.trim()) {
+    setSearchResults([]);
+    return;
+  }
+
+  try {
+    const res = await fetch(`http://localhost:5000/users/search?query=${query}`, {
+      credentials: "include"
+    });
+
+    const data = await res.json();
+
+    // ✅ THIS LINE FIXES YOUR CRASH
+    setSearchResults(Array.isArray(data) ? data : []);
+
+  } catch (err) {
+    console.error("Search failed:", err);
+    setSearchResults([]); // fallback
+  }
+};
   const handleAddFriend = async (targetUserId) => {
     if (!userId) { alert("You must be logged in to add friends"); return; }
     try {
@@ -360,6 +372,22 @@ function App() {
       setSentRequests(prev => [...prev, targetUserId]);
     } catch (err) {
       console.error("Failed to send request:", err);
+    }
+  };
+
+  // Navigate into a scrapbook (memory) from the home screen card
+  const handleScrapbookClick = async (memory) => {
+    setUploadedFiles([]);
+    setSelectedMemoryId(memory.memory_id);
+    setSelectedMemoryName(memory.title);
+    try {
+      const res = await fetch(`http://localhost:5000/api/canvas/load?memoryId=${memory.memory_id}`);
+      if (!res.ok) throw new Error("Load failed");
+      const data = await res.json();
+      setActiveTab(data.items?.length > 0 ? "canvas" : "upload");
+    } catch (err) {
+      console.error(err);
+      setActiveTab("upload");
     }
   };
 
@@ -395,50 +423,6 @@ function App() {
         </header>
       )}
 
-      {activeTab === "friends" && (
-        <FriendsPage
-          userId={userId}
-          friends={friends}
-          onAccept={() => fetchFriends(userId)}
-          onOpenChat={(friend) => {
-            setSelectedFriend(friend);
-            setActiveTab("friendchat");
-          }}
-          onOpenGroup={async (group, name, memberIds) => {
-            if (group) {
-              setSelectedGroup(group);
-              setActiveTab("groupchat");
-            } else {
-              await createGroup(name, memberIds);
-            }
-          }}
-          onLeaveGroup={leaveGroup}
-        />
-      )}
-
-      {activeTab === "friendchat" && selectedFriend && (
-        <FriendChat
-          friend={selectedFriend}
-          userId={userId}
-          onBack={() => setActiveTab("friends")}
-          onViewEmergencyLocation={(location) => {
-            setEmergencyLocation(location);
-            setActiveTab("maps");
-          }}
-        />
-      )}
-
-      {activeTab === "groupchat" && selectedGroup && (
-        <GroupChat
-          group={selectedGroup}
-          userId={userId}
-          userName={userName}
-          friends={friends}
-          onBack={() => setActiveTab("friends")}
-          onLeave={leaveGroup}
-        />
-      )}
-
       <SideMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
@@ -472,7 +456,6 @@ function App() {
               <div key={user.user_id} className="search-result-card">
                 <div className="search-result-info">
                   <p className="search-result-name">{user.first_name} {user.last_name}</p>
-                  <p className="search-result-username">@{user.username}</p>
                 </div>
                 <button
                   className={`add-friend-btn ${sentRequests.includes(user.user_id) ? "pending" : ""}`}
@@ -488,6 +471,51 @@ function App() {
       )}
 
       <main className={`content ${activeTab === "maps" ? "content--maps" : ""}`}>
+
+        {activeTab === "friends" && (
+          <FriendsPage
+            userId={userId}
+            friends={friends}
+            onAccept={() => fetchFriends(userId)}
+            onOpenChat={(friend) => {
+              setSelectedFriend(friend);
+              setActiveTab("friendchat");
+            }}
+            onOpenGroup={async (group, name, memberIds) => {
+              if (group) {
+                setSelectedGroup(group);
+                setActiveTab("groupchat");
+              } else {
+                await createGroup(name, memberIds);
+              }
+            }}
+            onLeaveGroup={leaveGroup}
+          />
+        )}
+
+        {activeTab === "friendchat" && selectedFriend && (
+          <FriendChat
+            friend={selectedFriend}
+            userId={userId}
+            onBack={() => setActiveTab("friends")}
+            onViewEmergencyLocation={(location) => {
+              setEmergencyLocation(location);
+              setActiveTab("maps");
+            }}
+          />
+        )}
+
+        {activeTab === "groupchat" && selectedGroup && (
+          <GroupChat
+            group={selectedGroup}
+            userId={userId}
+            userName={userName}
+            friends={friends}
+            onBack={() => setActiveTab("friends")}
+            onLeave={leaveGroup}
+          />
+        )}
+
         {activeTab === "home" && (
           <>
             <SectionHeader title="Your Travel Journey" />
@@ -526,19 +554,59 @@ function App() {
               ))}
             </div>
 
-            <SectionHeader title="Scrapbooks" showMore />
+            {/* ── Scrapbooks: real memories ── */}
+            <SectionHeader
+              title="Scrapbooks"
+              showMore
+              onSeeMore={() => setActiveTab("create")}
+            />
             <div className="horizontal-scroll">
-              {scrapbooks.map((scrap) => (
-                <article key={scrap.id} className="scrap-card">
-                  <div className="scrap-image" />
-                  <button className="scrap-heart" aria-label="Favorite"><AiOutlineHeart /></button>
-                  <div className="scrap-info">
-                    <h3>{scrap.city}</h3>
-                    <p className="scrap-location">{scrap.country}</p>
-                    <p className="scrap-price">{scrap.date}</p>
-                  </div>
-                </article>
-              ))}
+              {/* "New scrapbook" add button */}
+              <button
+                className="scrap-add-btn"
+                onClick={() => setActiveTab("create")}
+                aria-label="Create new scrapbook"
+              >
+                <div className="scrap-add-icon">+</div>
+                <p>New Scrapbook</p>
+              </button>
+
+              {scrapbooks.length === 0 ? (
+                <p style={{ color: "#aaa", fontSize: "13px", alignSelf: "center", paddingRight: 16 }}>
+                  No scrapbooks yet — create one!
+                </p>
+              ) : (
+                scrapbooks.map((memory) => (
+                  <article
+                    key={memory.memory_id}
+                    className="scrap-card"
+                    onClick={() => handleScrapbookClick(memory)}
+                    style={{ cursor: "pointer", minWidth: 180, maxWidth: 220 }}
+                  >
+                    {/* Live canvas thumbnail instead of placeholder gradient */}
+                    <div className="scrap-image" style={{ padding: 0, overflow: "hidden" }}>
+                      <CanvasThumbnail
+                        memoryId={memory.memory_id}
+                        memoryTitle={memory.title}
+                        width={220}
+                        height={108}
+                        showShareBtn={false}
+                        showExportBtn={false}
+                      />
+                    </div>
+                    <div className="scrap-info">
+                      <h3>{memory.title}</h3>
+                      <p className="scrap-location">
+                        {new Date(memory.created_at).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
 
             <SectionHeader title="Friends" showMore />
@@ -568,7 +636,7 @@ function App() {
               )}
             </div>
 
-            <SectionHeader title="Bucket list" showMore onTitleClick={() => setActiveTab("bucketlists")} />
+            <SectionHeader title="Bucket List" showMore onTitleClick={() => setActiveTab("bucketlists")} />
             <div className="horizontal-scroll">
               <button className="bList-add-btn" onClick={() => setShowBucketModal(true)}>
                 <div className="bList-add-icon">+</div>
@@ -621,12 +689,12 @@ function App() {
 
         {activeTab === "create" && (
           <Memories
-            serverData={serverData}
             setActiveTab={setActiveTab}
             setSelectedMemoryId={setSelectedMemoryId}
             setSelectedMemoryName={setSelectedMemoryName}
-            uploadedFiles={uploadedFiles}
             setUploadedFiles={setUploadedFiles}
+            userId={userId}
+            avatarUrl={avatarUrl}
           />
         )}
 
@@ -649,6 +717,7 @@ function App() {
             uploadedFiles={uploadedFiles}
             setActiveTab={setActiveTab}
             setUploadedFiles={setUploadedFiles}
+            avatarUrl={avatarUrl}
           />
         )}
 
@@ -712,12 +781,13 @@ function App() {
             }}
           />
         )}
+
       </main>
 
       <nav className="bottom-nav" role="navigation" aria-label="Main navigation">
         <NavItem icon={<AiFillHome />}        active={activeTab === "home"}       onClick={() => setActiveTab("home")}       label="Home" />
         <NavItem icon={<FiMapPin />}          active={activeTab === "maps"}       onClick={() => setActiveTab("maps")}       label="Maps" />
-        <NavItem icon={<IoCreate />}       active={activeTab === "create"}     onClick={() => setActiveTab("create")}     label="Create" />
+        <NavItem icon={<IoCreate />}          active={activeTab === "create"}     onClick={() => setActiveTab("create")}     label="Create" />
         <NavItem icon={<MdEmergency />}       active={activeTab === "sos"}        onClick={() => setActiveTab("sos")}        label="SOS" />
         <NavItem icon={<FiMessageCircle />}   active={activeTab === "chatroom"}   onClick={() => setActiveTab("chatroom")}   label="Chat" />
         <NavItem icon={<FaTrophy />}          active={activeTab === "Challenges"} onClick={() => setActiveTab("Challenges")} label="Challenges" />
@@ -737,13 +807,17 @@ function App() {
   );
 }
 
-function SectionHeader({ title, showMore, onTitleClick }) {
+function SectionHeader({ title, showMore, onTitleClick, onSeeMore }) {
   return (
     <div className="section-header">
       <h2 onClick={onTitleClick} style={onTitleClick ? { cursor: "pointer" } : {}}>
         {title}
       </h2>
-      {showMore && <button className="see-more">See more</button>}
+      {showMore && (
+        <button className="see-more" onClick={onSeeMore}>
+          See more
+        </button>
+      )}
     </div>
   );
 }

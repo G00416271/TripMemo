@@ -89,6 +89,8 @@ function AvatarPicker({ currentAvatar, userId, onSave, onClose }) {
 }
 
 export default function ProfilePage({ user, userId, friends, onBack, onAvatarUpdate, onProfileUpdate }) {
+
+  console.log("name:", user, "userId:", userId, "friends:", friends);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.first_name || "");

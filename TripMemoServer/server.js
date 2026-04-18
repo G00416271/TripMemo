@@ -231,7 +231,6 @@ app.post("/interestReq", upload.none(), async (req, res) => {
   }
 });
 
-
 //-------------------------------------
 //  REGISTER/LOGIN
 //-------------------------------------
@@ -342,15 +341,16 @@ app.get("/users/search", async (req, res) => {
     if (!query) return res.json([]);
 
     const [rows] = await db.execute(
-      `SELECT user_id, username, first_name, last_name 
-       FROM users 
-       WHERE username LIKE ? 
-       LIMIT 10`,
+      `SELECT user_id, username, first_name, last_name, avatar_url
+FROM users
+WHERE username LIKE ?
+LIMIT 10`,
       [`%${query}%`],
     );
 
     res.json(rows);
   } catch (error) {
+    console.error("🔥 /users/search error:", error); // ADD THIS
     res.status(500).json({ error: "Search failed" });
   }
 });
@@ -655,10 +655,10 @@ app.post("/register", async (req, res) => {
 //auth after login
 app.get("/me", requireAuth, async (req, res) => {
   const [rows] = await db.execute(
-    "SELECT user_id, username, email FROM users WHERE user_id = ?",
+    `SELECT user_id, username, email, first_name, last_name, avatar_url, created_at 
+     FROM users WHERE user_id = ?`,
     [req.userId],
   );
-
   res.json(rows[0]);
 });
 
@@ -715,13 +715,11 @@ app.post(
       res.status(result.success ? 200 : 422).json(result);
     } catch (err) {
       console.error("challenge-submit error:", err);
-      res
-        .status(500)
-        .json({
-          success: false,
-          reason: "server_error",
-          message: "Server error. Please try again.",
-        });
+      res.status(500).json({
+        success: false,
+        reason: "server_error",
+        message: "Server error. Please try again.",
+      });
     }
   },
 );

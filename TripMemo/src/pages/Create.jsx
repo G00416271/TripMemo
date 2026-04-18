@@ -19,6 +19,7 @@ export default function Create({
   memoryName,
   uploadedFiles,
   setUploadedFiles,
+  avatarUrl,
 }) {
   const [page, setPage] = useState("main");
   const [tags, setTags] = useState([]);
@@ -35,7 +36,6 @@ export default function Create({
     if (!showBgPicker) return;
     function handleClick(e) {
       if (pickerRef.current && !pickerRef.current.contains(e.target)) {
-        // don't close if clicking the FAB itself
         if (e.target.closest?.("#bg-fab")) return;
         setShowBgPicker(false);
       }
@@ -62,8 +62,16 @@ export default function Create({
           height={window.innerHeight}
         />
 
+        {/* Navbar — receives live bgColor so it tints to match */}
         <div id="navbar">
-          <NavBar setActiveTab={setActiveTab} />
+          <NavBar
+            setActiveTab={setActiveTab}
+            avatarUrl={avatarUrl}
+            bgColor={bgColor}
+            memoryName={memoryName}
+            onSave={() => saveRef.current?.()}
+            onCanvas={true}
+          />
         </div>
 
         {/* toolbar on the left */}
@@ -71,13 +79,19 @@ export default function Create({
           tool={tool}
           setTool={setTool}
           onSave={() => {
-            console.log("onSave clicked, saveRef.current:", saveRef.current);
             saveRef.current?.();
           }}
           setActiveTab={setActiveTab}
         />
-        {/* main screen */}
-        <div id="canvas-wrapper">
+
+        {/* main canvas */}
+        <div
+          id="canvas-wrapper"
+          style={{
+            padding: "16px 16px 100px 16px",
+            boxSizing: "border-box",
+          }}
+        >
           <Canvas
             memoryId={memoryId}
             memoryName={memoryName}
@@ -103,14 +117,14 @@ export default function Create({
           <BottomDrawer serverData={serverData} memoryTags={tags} />
         </div>
 
-        {/* ── Background picker FAB + panel ──────────────────────────── */}
+        {/* ── Background picker FAB + panel ── */}
         <button
           id="bg-fab"
           onClick={() => setShowBgPicker((v) => !v)}
           title="Background & Pattern"
           style={{
             position: "fixed",
-            bottom: 80, // ← raise it above the drawer (was 24)
+            bottom: 80,
             left: 24,
             zIndex: 2000,
             width: 44,
@@ -137,7 +151,7 @@ export default function Create({
             ref={pickerRef}
             style={{
               position: "fixed",
-              bottom: 136, // ← 80 (raised FAB) + 44 (FAB height) + 12 (gap)
+              bottom: 136,
               left: 24,
               zIndex: 2001,
             }}

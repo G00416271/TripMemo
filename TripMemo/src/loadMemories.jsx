@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "./Auth.jsx";
+
 import CanvasThumbnail from "./CanvasThumbnail";
+import { FiArrowLeft, FiPlus, FiMoreVertical, FiShare2, FiTrash2 } from "react-icons/fi";
 
-export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName, setUploadedFiles }) {
-
+export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName, setUploadedFiles, userId }) {
   const [memories, setMemories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [memoryName, setMemoryName] = useState("");
@@ -12,8 +12,7 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memoryToDelete, setMemoryToDelete] = useState(null);
 
-  const { user, isLoggedIn } = useAuth();
-  if (!isLoggedIn) return <p>Please log in</p>;
+
 
   const DBentry = async (user_id, mn) => {
     const fd = new FormData();
@@ -29,7 +28,7 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     const fd = new FormData();
     fd.append("action", "delete");
     fd.append("memory_id", String(memory_id));
-    fd.append("user_id", String(user.user_id));
+    fd.append("user_id", String(userId));
     const res = await fetch("http://localhost:5000/memories", { method: "POST", body: fd });
     if (!res.ok) throw new Error("Memory delete failed");
     return res.json();
@@ -42,24 +41,26 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
   };
 
   useEffect(() => {
-    if (!user?.user_id) return;
+    if (!userId) return;
     const fd = new FormData();
     fd.append("action", "fetch");
-    fd.append("user_id", user.user_id);
+    fd.append("user_id", userId);
     fetch("http://localhost:5000/memories", { method: "POST", body: fd })
       .then((res) => res.json())
       .then((data) => { setMemories(data); setLoading(false); })
       .catch((err) => { console.error("Error:", err); setLoading(false); });
-  }, [user]);
-
-  const handleCreateMemory = () => setShowForm(true);
+  }, [userId]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     const title = memoryName.trim();
     if (!title) return;
+    if (!userId) {
+      console.error("handleSubmit: userId is null/undefined — cannot create memory");
+      return;
+    }
     try {
-      const created = await DBentry(user.user_id, title);
+      const created = await DBentry(userId, title);
       if (created?.memory) {
         setMemories((prev) => [...prev, created.memory]);
         setMemoryName("");
@@ -100,10 +101,6 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     }
   };
 
-  const cancelDelete = () => { setShowDeleteConfirm(false); setMemoryToDelete(null); };
-  const handleCancel = () => { setMemoryName(""); setShowForm(false); };
-  const handleBack = () => window.history.back();
-
   const handleCardClick = async (memoryId, memoryTitle) => {
     setUploadedFiles([]);
     setSelectedMemoryId(memoryId);
@@ -120,140 +117,484 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <div style={styles.page}>
 
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 bg-black transition-opacity duration-300 ${
-          showForm || showDeleteConfirm ? "opacity-50 z-40" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={() => { if (showForm) handleCancel(); if (showDeleteConfirm) cancelDelete(); }}
-      />
-
-      {/* Click outside to close menu */}
-      {activeMenu && (
-        <div className="fixed inset-0 z-10" onClick={() => setActiveMenu(null)} />
+      {/* ── Overlay ── */}
+      {(showForm || showDeleteConfirm) && (
+        <div
+          style={styles.overlay}
+          onClick={() => {
+            if (showForm) { setShowForm(false); setMemoryName(""); }
+            if (showDeleteConfirm) { setShowDeleteConfirm(false); setMemoryToDelete(null); }
+            
+          }}
+        />
       )}
 
-      <div className="max-w-7xl mx-auto">
+      {/* Click-outside to close dropdown — no blur */}
+      {activeMenu && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 20 }} onClick={() => setActiveMenu(null)} />
+      )}
 
-        {/* Create Memory Form */}
-        <div className={`fixed top-0 left-0 right-0 bg-white shadow-lg border-b border-slate-200 transform transition-transform duration-300 ease-out z-50 ${showForm ? "translate-y-0" : "-translate-y-full"}`}>
-          <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Create New Memory</h2>
-            <div>
-              <div className="mb-4">
-                <label htmlFor="memoryName" className="block text-sm font-medium text-slate-700 mb-2">Memory Name</label>
-                <input
-                  type="text" id="memoryName" value={memoryName}
-                  onChange={(e) => setMemoryName(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleSubmit(e)}
-                  placeholder="Enter memory name..."
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={handleCancel} className="px-5 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors">Cancel</button>
-                <button type="button" onClick={handleSubmit} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200">Create</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Delete Confirmation */}
-        <div className={`fixed top-0 left-0 right-0 bg-white shadow-lg border-b border-slate-200 transform transition-transform duration-300 ease-out z-50 ${showDeleteConfirm ? "translate-y-0" : "-translate-y-full"}`}>
-          <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Delete Memory</h2>
-            <p className="text-slate-600 mb-6">Are you sure you want to delete this memory? This action cannot be undone.</p>
-            <div className="flex gap-3 justify-end">
-              <button type="button" onClick={cancelDelete} className="px-5 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors">Cancel</button>
-              <button type="button" onClick={confirmDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200">Delete</button>
-            </div>
-          </div>
-        </div>
-
-        <button onClick={handleBack} className="flex items-center gap-2 text-slate-600 hover:text-slate-800 font-medium mb-6 transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-4xl font-bold text-slate-800">My Memories</h1>
-          <button onClick={handleCreateMemory} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Memory
+      {/* ── Create form sheet ── */}
+      <div style={{ ...styles.sheet, transform: showForm ? "translateY(0)" : "translateY(-110%)" }}>
+        <h2 style={styles.sheetTitle}>New Scrapbook</h2>
+        <input
+          type="text"
+          value={memoryName}
+          onChange={(e) => setMemoryName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="Give it a name..."
+          style={styles.sheetInput}
+          autoFocus={showForm}
+        />
+        <div style={styles.sheetActions}>
+          <button style={styles.btnCancel} onClick={() => { setShowForm(false); setMemoryName(""); }}>
+            Cancel
+          </button>
+          <button style={styles.btnCreate} onClick={handleSubmit}>
+            Create
           </button>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* ── Delete confirm sheet ── */}
+      <div style={{ ...styles.sheet, transform: showDeleteConfirm ? "translateY(0)" : "translateY(-110%)" }}>
+        <h2 style={styles.sheetTitle}>Delete Scrapbook?</h2>
+        <p style={styles.sheetBody}>This action can't be undone. All canvas content will be permanently removed.</p>
+        <div style={styles.sheetActions}>
+          <button style={styles.btnCancel} onClick={() => { setShowDeleteConfirm(false); setMemoryToDelete(null); }}>
+            Cancel
+          </button>
+          <button style={{ ...styles.btnCreate, background: "#FF3B30" }} onClick={confirmDelete}>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {/* ── Header ── */}
+      <div style={styles.header}>
+        <button style={styles.backBtn} onClick={() => setActiveTab("home")}>
+          <FiArrowLeft size={18} />
+          <span>Back</span>
+        </button>
+        <h1 style={styles.pageTitle}>My Scrapbooks</h1>
+        <button style={styles.createBtn} onClick={() => setShowForm(true)}>
+          <FiPlus size={16} />
+          New
+        </button>
+      </div>
+
+      {/* ── Grid ── */}
+      {loading ? (
+        <div style={styles.emptyState}>
+          <div style={styles.spinner}>◌</div>
+          <p style={{ color: "#9a9a9a", marginTop: 12 }}>Loading scrapbooks…</p>
+        </div>
+      ) : memories.length === 0 ? (
+        <div style={styles.emptyState}>
+          <div style={styles.emptyIcon}>📖</div>
+          <p style={styles.emptyTitle}>No scrapbooks yet</p>
+          <p style={styles.emptySubtitle}>Tap "New" to create your first one</p>
+          <button style={styles.emptyBtn} onClick={() => setShowForm(true)}>
+            <FiPlus size={14} /> Create Scrapbook
+          </button>
+        </div>
+      ) : (
+        <div style={styles.grid}>
+          {/* Add card */}
+          <button style={styles.addCard} onClick={() => setShowForm(true)}>
+            <div style={styles.addIcon}>+</div>
+            <span style={styles.addLabel}>New Scrapbook</span>
+          </button>
+
           {memories.map((memory) => (
             <div
               key={memory.memory_id}
+              style={styles.card}
               onClick={() => handleCardClick(memory.memory_id, memory.title)}
-              className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer relative"
             >
-              {/* Three dots menu button */}
+              {/* Three-dot menu */}
               <button
+                style={styles.menuBtn}
                 onClick={(e) => toggleMenu(memory.memory_id, e)}
-                className="absolute top-3 right-3 z-30 bg-white hover:bg-gray-100 text-gray-600 p-2 rounded-full shadow-md transition-colors"
-                aria-label="Menu"
+                aria-label="Options"
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                </svg>
+                <FiMoreVertical size={16} />
               </button>
 
-              {/* Dropdown menu */}
+              {/* Dropdown */}
               {activeMenu === memory.memory_id && (
-                <div className="absolute top-14 right-3 z-30 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
-                  {/* Share button */}
-                  <button
-                    onClick={(e) => handleShareClick(memory.memory_id, e)}
-                    className="flex items-center gap-2 w-full px-4 py-3 text-left text-blue-600 hover:bg-blue-50 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
+                <div style={styles.dropdown}>
+                  <button style={styles.dropdownItem} onClick={(e) => handleShareClick(memory.memory_id, e)}>
+                    <FiShare2 size={14} />
                     Share
                   </button>
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => handleDeleteClick(memory.memory_id, e)}
-                    className="flex items-center gap-2 w-full px-4 py-3 text-left text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                  <button style={{ ...styles.dropdownItem, color: "#FF3B30" }} onClick={(e) => handleDeleteClick(memory.memory_id, e)}>
+                    <FiTrash2 size={14} />
                     Delete
                   </button>
                 </div>
               )}
 
-              {/* Canvas thumbnail preview */}
-              <CanvasThumbnail
-                memoryId={memory.memory_id}
-                memoryTitle={memory.title}
-                width={400}
-                height={192}
-                showShareBtn={false}
-                showExportBtn={false}
-              />
+              {/* Canvas thumbnail */}
+              <div style={styles.thumbnail}>
+                <CanvasThumbnail
+                  memoryId={memory.memory_id}
+                  memoryTitle={memory.title}
+                  width={320}
+                  height={180}
+                  showShareBtn={false}
+                  showExportBtn={false}
+                />
+              </div>
 
-              <div className="p-4">
-                <h3 className="text-lg font-semibold text-slate-800 truncate">
-                  {memory.title}
-                </h3>
+              {/* Card footer */}
+              <div style={styles.cardFooter}>
+                <h3 style={styles.cardTitle}>{memory.title}</h3>
+                <p style={styles.cardDate}>
+                  {new Date(memory.created_at).toLocaleDateString("en-GB", {
+                    day: "2-digit", month: "short", year: "numeric"
+                  })}
+                </p>
               </div>
             </div>
           ))}
         </div>
+      )}
 
-      </div>
+      <style>{`
+        @keyframes memoriesSpin {
+          to { transform: rotate(360deg); }
+        }
+        .mem-card:hover {
+          transform: translateY(-4px) !important;
+          box-shadow: 0 12px 32px rgba(26,22,37,0.14) !important;
+          border-color: rgba(255,0,85,0.18) !important;
+        }
+        .mem-add:hover {
+          border-color: #FF0055 !important;
+          background: rgba(255,0,85,0.06) !important;
+          transform: translateY(-2px) !important;
+        }
+        .mem-menu-btn:hover {
+          background: rgba(26,22,37,0.08) !important;
+        }
+        .mem-create-btn:hover {
+          opacity: 0.88;
+          transform: translateY(-1px);
+        }
+        .mem-back-btn:hover {
+          color: #151515 !important;
+          background: #f4f5f7 !important;
+        }
+        .mem-dropdown-item:hover {
+          background: #f4f5f7 !important;
+        }
+      `}</style>
     </div>
   );
 }
+
+// ── Styles object ─────────────────────────────────────────
+const styles = {
+  page: {
+    minHeight: "100%",
+    background: "#f0f0f2",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    position: "relative",
+    paddingBottom: 100,
+  },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.4)",
+    zIndex: 40,
+  },
+  sheet: {
+    position: "fixed",
+    top: 0,
+    left: "50%",
+    transform: "translateX(-50%) translateY(-110%)",
+    width: "min(480px, 92vw)",
+    background: "#fff",
+    borderRadius: "0 0 24px 24px",
+    boxShadow: "0 8px 40px rgba(26,22,37,0.18)",
+    padding: "32px 28px 28px",
+    zIndex: 50,
+    transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+  },
+  sheetTitle: {
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 22,
+    fontWeight: 800,
+    color: "#151515",
+    margin: "0 0 16px",
+  },
+  sheetBody: {
+    fontSize: 14,
+    color: "#9a9a9a",
+    lineHeight: 1.6,
+    margin: "0 0 24px",
+  },
+  sheetInput: {
+    width: "100%",
+    padding: "13px 16px",
+    border: "1.5px solid rgba(26,22,37,0.12)",
+    borderRadius: 14,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 15,
+    color: "#151515",
+    background: "#f4f5f7",
+    outline: "none",
+    marginBottom: 20,
+    boxSizing: "border-box",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  },
+  sheetActions: {
+    display: "flex",
+    gap: 10,
+    justifyContent: "flex-end",
+  },
+  btnCancel: {
+    padding: "10px 20px",
+    borderRadius: 12,
+    border: "1.5px solid rgba(26,22,37,0.1)",
+    background: "#f4f5f7",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#333",
+    cursor: "pointer",
+  },
+  btnCreate: {
+    padding: "10px 22px",
+    borderRadius: 12,
+    border: "none",
+    background: "#FF0055",
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 14,
+    fontWeight: 800,
+    color: "#fff",
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(255,0,85,0.3)",
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "20px 22px 16px",
+    background: "#fff",
+    borderBottom: "1px solid rgba(26,22,37,0.06)",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+  },
+  backBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "none",
+    background: "transparent",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#9a9a9a",
+    cursor: "pointer",
+    transition: "color 0.2s, background 0.2s",
+    flexShrink: 0,
+  },
+  pageTitle: {
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 22,
+    fontWeight: 800,
+    color: "#151515",
+    margin: 0,
+    flex: 1,
+    letterSpacing: "-0.02em",
+  },
+  createBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "9px 16px",
+    borderRadius: 12,
+    border: "none",
+    background: "#FF0055",
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#fff",
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(255,0,85,0.28)",
+    transition: "opacity 0.2s, transform 0.2s",
+    flexShrink: 0,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: 18,
+    padding: "22px 22px 32px",
+  },
+  card: {
+    background: "#fff",
+    borderRadius: 20,
+    overflow: "hidden",
+    border: "1.5px solid rgba(26,22,37,0.07)",
+    boxShadow: "0 4px 16px rgba(26,22,37,0.08)",
+    cursor: "pointer",
+    position: "relative",
+    transition: "transform 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s, border-color 0.22s",
+  },
+  menuBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 5,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.4)",
+    background: "rgba(255,255,255,0.85)",
+    backdropFilter: "blur(6px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#333",
+    transition: "background 0.18s",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+  },
+  dropdown: {
+    position: "absolute",
+    top: 46,
+    right: 10,
+    zIndex: 30,
+    background: "#fff",
+    borderRadius: 14,
+    boxShadow: "0 8px 28px rgba(26,22,37,0.16)",
+    border: "1.5px solid rgba(26,22,37,0.07)",
+    overflow: "hidden",
+    minWidth: 140,
+  },
+  dropdownItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "12px 16px",
+    border: "none",
+    background: "transparent",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#333",
+    cursor: "pointer",
+    textAlign: "left",
+    transition: "background 0.15s",
+  },
+  thumbnail: {
+    width: "100%",
+    overflow: "hidden",
+    display: "block",
+    lineHeight: 0,
+  },
+  cardFooter: {
+    padding: "14px 16px 16px",
+  },
+  cardTitle: {
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 16,
+    fontWeight: 800,
+    color: "#151515",
+    margin: "0 0 4px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  cardDate: {
+    fontSize: 12,
+    color: "#9a9a9a",
+    margin: 0,
+    fontWeight: 500,
+  },
+  addCard: {
+    background: "#fff",
+    borderRadius: 20,
+    border: "2px dashed rgba(255,0,85,0.25)",
+    boxShadow: "0 2px 10px rgba(26,22,37,0.06)",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    minHeight: 230,
+    transition: "border-color 0.22s, background 0.22s, transform 0.22s",
+  },
+  addIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #FF0055, #ff6b9d)",
+    color: "#fff",
+    fontSize: 26,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 4px 14px rgba(255,0,85,0.28)",
+  },
+  addLabel: {
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#9a9a9a",
+  },
+  emptyState: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "80px 24px",
+    textAlign: "center",
+  },
+  emptyIcon: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#151515",
+    margin: "0 0 8px",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#9a9a9a",
+    margin: "0 0 24px",
+  },
+  emptyBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "11px 22px",
+    borderRadius: 14,
+    border: "none",
+    background: "#FF0055",
+    fontFamily: "'Nunito', sans-serif",
+    fontSize: 14,
+    fontWeight: 800,
+    color: "#fff",
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(255,0,85,0.28)",
+  },
+  spinner: {
+    fontSize: 32,
+    color: "#FF0055",
+    animation: "memoriesSpin 1.2s linear infinite",
+    display: "inline-block",
+  },
+};

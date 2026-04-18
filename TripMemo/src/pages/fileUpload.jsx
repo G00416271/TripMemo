@@ -9,6 +9,7 @@ export default function FileUpload({
   onFilesReady,
   onUploadComplete,
   setActiveTab,
+  avatarUrl,
 }) {
   return (
     <div id="navbar" style={{ display: "flex", padding: 0 }}>
@@ -19,6 +20,7 @@ export default function FileUpload({
           memoryName={memoryName}
           onFilesReady={onFilesReady}
           onUploadComplete={onUploadComplete}
+          avatarUrl={avatarUrl}
         />
       </div>
     </div>
