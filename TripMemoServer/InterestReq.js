@@ -1,12 +1,8 @@
-import mysql from "mysql2/promise";
 import db from "./db.js";
 
-//Function is meant to get interst tags from database
 export default async function getInterests(tags = [], fields) {
-  //takes extracted tags , user details(username, passwordhash)
   const u = fields?.user || fields?.username;
   if (!u) {
-    await db.end?.();
     return { error: "username missing" };
   }
 
@@ -15,22 +11,16 @@ export default async function getInterests(tags = [], fields) {
     .filter((x) => typeof x === "string")
     .map((x) => x.toLowerCase());
 
-  //turns tags into array
   if (!Array.isArray(tags)) {
     tags = [tags];
   }
 
-
-  //sql querey
-  const [rows] = await db.execute(
-    "SELECT user_profile FROM users WHERE username = ?",
-    //returns all information regarding the user
+  const { rows } = await db.query(
+    "SELECT user_profile FROM users WHERE username = $1",
     [u],
   );
 
-  //user t
   if (rows.length === 0) {
-    await db.end();
     return { error: "No user found" };
   }
 
@@ -39,18 +29,14 @@ export default async function getInterests(tags = [], fields) {
     profile = JSON.parse(profile);
   }
 
-  // Convert [{interest: "..."}] → ["..."]
   const profileInterests = profile.map((item) => item.interest.toLowerCase());
 
-  // Bidirectional partial matching
   const matched = tags.filter((tag) => {
     const tagLower = tag.toLowerCase();
     return profileInterests.some(
       (interest) => interest.includes(tagLower) || tagLower.includes(interest),
     );
   });
-
-  await db.end();
 
   return {
     user: u,

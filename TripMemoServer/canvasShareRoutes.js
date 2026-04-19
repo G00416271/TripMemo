@@ -1,16 +1,10 @@
 // canvasShareRoutes.js
-// Mount in server.js:  import canvasShareRoutes from "./canvasShareRoutes.js";
-//                      app.use("/api/canvas", canvasShareRoutes);
-//
-// Public endpoint — no requireAuth.  Anyone with the memoryId can read.
-
 import express from "express";
 import db from "./db.js";
 import { generateSignedUrl } from "./r2.js";
 
 const router = express.Router();
 
-// ── helpers (mirrors canvasDbRoutes) ─────────────────────────────────────────
 function parseMemoryId(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -39,20 +33,19 @@ function safeParseJson(value, fallback) {
 }
 
 // ── GET /api/canvas/share/:memoryId  (public — no auth) ──────────────────────
-// Returns the same shape as /api/canvas/load but adds `memoryTitle`.
 router.get("/share/:memoryId", async (req, res) => {
   try {
     const memoryId = parseMemoryId(req.params.memoryId);
     if (!memoryId) return res.status(400).json({ error: "Invalid memoryId" });
 
-    const [rows] = await db.execute(
+    const { rows } = await db.query(
       `
       SELECT
         m.title,
-        JSON_EXTRACT(m.elements, '$.canvas') AS canvas,
+        m.elements -> 'canvas' AS canvas,
         m.tags
       FROM memories m
-      WHERE m.memory_id = ?
+      WHERE m.memory_id = $1
       LIMIT 1
       `,
       [memoryId],
@@ -68,7 +61,6 @@ router.get("/share/:memoryId", async (req, res) => {
     const safeBgColor = canvas?.bgColor   ?? "#ffffff";
     const safeBgPat   = canvas?.bgPattern ?? "blank";
 
-    // tags
     const tagsRaw = safeParseJson(rows[0].tags, []);
     let tags = [];
     if (Array.isArray(tagsRaw)) {
@@ -82,17 +74,15 @@ router.get("/share/:memoryId", async (req, res) => {
     }
     tags = [...new Set(tags.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()))];
 
-
-const isPreview = req.query.preview === "true";
-if (!isPreview) {
-  for (const item of safeItems) {
-    if (item?.imageKey && typeof item.imageKey === "string") {
-      item.imageUrl = await generateSignedUrl(item.imageKey);
+    const isPreview = req.query.preview === "true";
+    if (!isPreview) {
+      for (const item of safeItems) {
+        if (item?.imageKey && typeof item.imageKey === "string") {
+          item.imageUrl = await generateSignedUrl(item.imageKey);
+        }
+      }
     }
-  }
-}
 
-    // deezer defaults
     for (const item of safeItems) {
       if (item?.type === "deezer") {
         item.frame      = item.frame      ?? "none";

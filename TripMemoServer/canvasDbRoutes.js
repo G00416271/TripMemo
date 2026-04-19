@@ -109,32 +109,34 @@ router.post("/save", upload.array("images"), async (req, res) => {
       }
     }
 
-    // ── Persist deezer item style fields ─────────────────────────────────────
-    // (frame, fontFamily, fontColor are already on the item objects — we just
-    //  make sure they survive the round-trip by not stripping them here)
-
     const canvasObj  = { items, cam, zoom, bgColor, bgPattern, updatedAt: Date.now() };
     const canvasJson = JSON.stringify(canvasObj);
     const tagsJson   = JSON.stringify(tags);
 
     console.log("saving bgColor:", bgColor, "bgPattern:", bgPattern);
 
-    const [result] = await db.execute(
+    // PG: use jsonb_set to merge into elements. COALESCE handles null/non-object elements.
+    const result = await db.query(
       `
       UPDATE memories
       SET
-        elements = JSON_SET(
-          IF(JSON_TYPE(elements) = 'OBJECT', elements, JSON_OBJECT()),
-          '$.canvas',
-          CAST(? AS JSON)
+        elements = jsonb_set(
+          CASE
+            WHEN elements IS NULL OR jsonb_typeof(elements::jsonb) <> 'object'
+              THEN '{}'::jsonb
+            ELSE elements::jsonb
+          END,
+          '{canvas}',
+          $1::jsonb,
+          true
         ),
-        tags = CAST(? AS JSON)
-      WHERE memory_id = ?
+        tags = $2::jsonb
+      WHERE memory_id = $3
       `,
       [canvasJson, tagsJson, memoryId],
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: "Memory not found", memoryId });
     }
 
@@ -154,13 +156,13 @@ router.get("/load", async (req, res) => {
     const memoryId = parseMemoryId(req.query?.memoryId);
     if (!memoryId) return res.status(400).json({ error: "memoryId required" });
 
-    const [rows] = await db.execute(
+    const { rows } = await db.query(
       `
       SELECT
-        JSON_EXTRACT(elements, '$.canvas') AS canvas,
+        elements -> 'canvas' AS canvas,
         tags
       FROM memories
-      WHERE memory_id = ?
+      WHERE memory_id = $1
       LIMIT 1
       `,
       [memoryId],
@@ -200,14 +202,12 @@ router.get("/load", async (req, res) => {
       ),
     ];
 
-    // ── Restore signed URLs for uploaded images ───────────────────────────────
     for (const item of safeItems) {
       if (item?.imageKey && typeof item.imageKey === "string") {
         item.imageUrl = await generateSignedUrl(item.imageKey);
       }
     }
 
-    // ── Deezer items: ensure style defaults are present ───────────────────────
     for (const item of safeItems) {
       if (item?.type === "deezer") {
         item.frame      = item.frame      ?? "none";
@@ -242,21 +242,23 @@ router.delete("/delete", async (req, res) => {
     const memoryId = parseMemoryId(req.query?.memoryId);
     if (!memoryId) return res.status(400).json({ error: "memoryId required" });
 
-    const [dbResult] = await db.execute(
+    // PG: `#-` operator removes a JSON path
+    const dbResult = await db.query(
       `
       UPDATE memories
       SET
-        elements = JSON_REMOVE(
-          IF(JSON_TYPE(elements) = 'OBJECT', elements, JSON_OBJECT()),
-          '$.canvas'
-        ),
-        tags = JSON_ARRAY()
-      WHERE memory_id = ?
+        elements = CASE
+          WHEN elements IS NULL OR jsonb_typeof(elements::jsonb) <> 'object'
+            THEN '{}'::jsonb
+          ELSE (elements::jsonb) #- '{canvas}'
+        END,
+        tags = '[]'::jsonb
+      WHERE memory_id = $1
       `,
       [memoryId],
     );
 
-    if (dbResult.affectedRows === 0) {
+    if (dbResult.rowCount === 0) {
       return res.status(404).json({ error: "Memory not found", memoryId });
     }
 

@@ -3,8 +3,8 @@ import db from "./db.js";
 export default async function getMemories(formData) {
 
   if (formData.action === "fetch") {
-    const [rows] = await db.execute(
-      "SELECT memory_id, title, elements, created_at, privacy_level FROM memories WHERE user_id = ?",
+    const { rows } = await db.query(
+      "SELECT memory_id, title, elements, created_at, privacy_level FROM memories WHERE user_id = $1",
       [formData.user_id],
     );
     return rows;
@@ -15,11 +15,11 @@ export default async function getMemories(formData) {
     if (!Number.isFinite(memoryId) || memoryId <= 0) {
       return { error: "memory_id required" };
     }
-    const [result] = await db.execute(
-      "DELETE FROM memories WHERE memory_id = ?",
+    const { rowCount } = await db.query(
+      "DELETE FROM memories WHERE memory_id = $1",
       [memoryId],
     );
-    return { ok: true, affectedRows: result.affectedRows };
+    return { ok: true, affectedRows: rowCount };
   }
 
   if (formData.action === "create") {
@@ -30,15 +30,17 @@ export default async function getMemories(formData) {
     if (!title) return { error: "title required" };
     if (!userId) return { error: "user_id required" };
 
-    const [result] = await db.execute(
-      "INSERT INTO memories (user_id, title, elements, tags, privacy_level) VALUES (?, ?, JSON_OBJECT(), JSON_ARRAY(), ?)",
+    const { rows } = await db.query(
+      `INSERT INTO memories (user_id, title, elements, tags, privacy_level)
+       VALUES ($1, $2, '{}'::jsonb, '[]'::jsonb, $3)
+       RETURNING memory_id`,
       [userId, title, privacyLevel],
     );
 
     return {
       ok: true,
       memory: {
-        memory_id: result.insertId,
+        memory_id: rows[0].memory_id,
         title,
         privacy_level: privacyLevel,
         created_at: new Date().toISOString(),
@@ -49,7 +51,6 @@ export default async function getMemories(formData) {
     };
   }
 
-  // ← now a top-level block, not nested inside create
   if (formData.action === "update_privacy") {
     const memoryId = Number(formData.memory_id);
     const privacyLevel = String(formData.privacy_level ?? "public");
@@ -58,8 +59,8 @@ export default async function getMemories(formData) {
       return { error: "memory_id required" };
     }
 
-    await db.execute(
-      "UPDATE memories SET privacy_level = ? WHERE memory_id = ?",
+    await db.query(
+      "UPDATE memories SET privacy_level = $1 WHERE memory_id = $2",
       [privacyLevel, memoryId],
     );
 

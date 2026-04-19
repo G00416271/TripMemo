@@ -60,17 +60,15 @@ const CHALLENGE_DEFS = {
   galway_anything: {
     label:       "Anything (Test)",
     landmark:    { lat: 53.270962, lng: -9.056791 },
-    textPrompts: null,   // null = skip image check entirely
+    textPrompts: null,
   },
 };
 
 // ─── Cached text vectors ──────────────────────────────────────────────────────
-// { [taskId]: number[][] | null }
-// Populated once at startup from challenges_features.pt via clipChallenge.py.
 let TEXT_VECTORS = null;
 
 export async function initChallengeVectors() {
-  TEXT_VECTORS = {};   // ← must be {} not null so keys can be assigned in the loop
+  TEXT_VECTORS = {};
 
   for (const [taskId, def] of Object.entries(CHALLENGE_DEFS)) {
     if (!def.textPrompts) {
@@ -79,9 +77,6 @@ export async function initChallengeVectors() {
     }
 
     try {
-      // embedText sends { mode: "text", texts: [...] } to clipChallenge.py,
-      // which looks each prompt up in challenges_features.pt and returns the
-      // cached 512-dim vectors. Falls back to live CLIP only on a cache miss.
       const vecs = await embedText(def.textPrompts);
       TEXT_VECTORS[taskId] = vecs;
       console.log(`📎 CLIP text vectors ready for ${taskId} (${vecs.length} prompts)`);
@@ -130,50 +125,50 @@ function haversineMetres(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-// ─── DB helpers ───────────────────────────────────────────────────────────────
+// ─── DB helpers (PostgreSQL) ──────────────────────────────────────────────────
 
 export async function ensureChallengeTable() {
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS challenge_completions (
-      id           INT AUTO_INCREMENT PRIMARY KEY,
-      user_id      INT          NOT NULL,
-      task_id      VARCHAR(64)  NOT NULL,
-      completed_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      similarity   FLOAT,
-      distance_m   FLOAT,
-      latitude     DOUBLE,
-      longitude    DOUBLE,
-      UNIQUE KEY uq_user_task (user_id, task_id)
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER          NOT NULL,
+      task_id      VARCHAR(64)      NOT NULL,
+      completed_at TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      similarity   REAL,
+      distance_m   REAL,
+      latitude     DOUBLE PRECISION,
+      longitude    DOUBLE PRECISION,
+      CONSTRAINT uq_user_task UNIQUE (user_id, task_id)
     )
   `);
 }
 
 async function isAlreadyComplete(userId, taskId) {
-  const [rows] = await db.execute(
-    "SELECT id FROM challenge_completions WHERE user_id = ? AND task_id = ?",
+  const { rows } = await db.query(
+    "SELECT id FROM challenge_completions WHERE user_id = $1 AND task_id = $2",
     [userId, taskId]
   );
   return rows.length > 0;
 }
 
 async function saveCompletion(userId, taskId, { similarity, distanceM, latitude, longitude }) {
-  await db.execute(
+  await db.query(
     `INSERT INTO challenge_completions
        (user_id, task_id, similarity, distance_m, latitude, longitude)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (user_id, task_id) DO UPDATE SET
        completed_at = CURRENT_TIMESTAMP,
-       similarity   = VALUES(similarity),
-       distance_m   = VALUES(distance_m),
-       latitude     = VALUES(latitude),
-       longitude    = VALUES(longitude)`,
+       similarity   = EXCLUDED.similarity,
+       distance_m   = EXCLUDED.distance_m,
+       latitude     = EXCLUDED.latitude,
+       longitude    = EXCLUDED.longitude`,
     [userId, taskId, similarity ?? null, distanceM ?? null, latitude ?? null, longitude ?? null]
   );
 }
 
 export async function getCompletedChallenges(userId) {
-  const [rows] = await db.execute(
-    "SELECT task_id, completed_at, similarity, distance_m FROM challenge_completions WHERE user_id = ?",
+  const { rows } = await db.query(
+    "SELECT task_id, completed_at, similarity, distance_m FROM challenge_completions WHERE user_id = $1",
     [userId]
   );
   return rows;
