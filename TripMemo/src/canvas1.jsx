@@ -14,6 +14,7 @@ import useImage from "use-image";
 import { proxy } from "./proxy";
 import { FONTS, FRAMES } from "./toolbox/deezercard";
 import DeezerCard from "./toolbox/deezercard";
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function isDarkColor(hex) {
   const c = (hex ?? "#ffffff").replace("#", "");
@@ -23,8 +24,25 @@ function isDarkColor(hex) {
   return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
+// Map each tool to the CSS cursor that best describes its current action
+function cursorForTool(tool, isPanning) {
+  if (isPanning) return "grabbing";
+  switch (tool) {
+    case "pencil":
+    case "line":
+    case "rectangle":
+      return "crosshair";
+    case "text":
+      return "text";
+    case "eraser":
+      return "cell";
+    case "selection":
+    default:
+      return "default";
+  }
+}
+
 // ── Background layer — inside Konva Stage, pans/zooms for free ────────────────
-// ── Background layer — single pattern tile, zero per-element cost ─────────────
 function BackgroundLayer({ pattern, bgColor, zoom, size, cam }) {
   if (pattern === "blank") return null;
   if (zoom < 0.25) return null;
@@ -34,17 +52,12 @@ function BackgroundLayer({ pattern, bgColor, zoom, size, cam }) {
     ? "rgba(255,255,255,0.18)"
     : "rgba(0,0,0,0.12)";
 
-  // Offset the pattern origin so it pans with the camera
-  // cam is in screen-space pixels, pattern is in world-space
-  // We need the offset in world-space, then Konva's scaleX/Y does the rest
   const offsetX = (((cam.x / zoom) % SPACING) + SPACING) % SPACING;
   const offsetY = (((cam.y / zoom) % SPACING) + SPACING) % SPACING;
 
-  // Width/height of the SVG we render — cover the full visible area in world coords
   const worldW = size.w / zoom + SPACING * 2;
   const worldH = size.h / zoom + SPACING * 2;
 
-  // Top-left corner in world coords (account for pattern offset)
   const worldX = -cam.x / zoom - offsetX;
   const worldY = -cam.y / zoom - offsetY;
 
@@ -107,6 +120,7 @@ const PASTEL_COLORS = [
 ];
 
 function PenColorPicker({ currentColor, onColorChange }) {
+  const [hovered, setHovered] = useState(null);
   return (
     <div
       style={{
@@ -124,6 +138,7 @@ function PenColorPicker({ currentColor, onColorChange }) {
         gap: 8,
         boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
         minWidth: 240,
+        animation: "fadeInUp 160ms ease-out",
       }}
     >
       <div
@@ -134,28 +149,107 @@ function PenColorPicker({ currentColor, onColorChange }) {
           letterSpacing: "0.1em",
         }}
       >
-        PEN COLOUR
+        PEN COLOUR {hovered && <span style={{ color: "#555" }}>— {hovered}</span>}
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {PASTEL_COLORS.map((c) => (
-          <button
-            key={c.value}
-            title={c.label}
-            onClick={() => onColorChange(c.value)}
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: "50%",
-              background: c.value,
-              border:
-                currentColor === c.value ? "3px solid #555" : "2px solid #ccc",
-              cursor: "pointer",
-              flexShrink: 0,
-              transform: currentColor === c.value ? "scale(1.25)" : "scale(1)",
-              transition: "transform 0.12s",
-            }}
-          />
-        ))}
+        {PASTEL_COLORS.map((c) => {
+          const isSelected = currentColor === c.value;
+          const isHover = hovered === c.label;
+          return (
+            <button
+              key={c.value}
+              title={c.label}
+              onClick={() => onColorChange(c.value)}
+              onMouseEnter={() => setHovered(c.label)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                background: c.value,
+                border: isSelected ? "3px solid #555" : "2px solid #ccc",
+                cursor: "pointer",
+                flexShrink: 0,
+                transform: isSelected
+                  ? "scale(1.25)"
+                  : isHover
+                  ? "scale(1.12)"
+                  : "scale(1)",
+                transition: "transform 0.12s, box-shadow 0.12s",
+                boxShadow: isHover && !isSelected
+                  ? "0 2px 6px rgba(0,0,0,0.18)"
+                  : "none",
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Floating font picker that appears near a selected text object
+function TextFontPicker({ currentFont, onFontChange, position }) {
+  const [hovered, setHovered] = useState(null);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: position.x,
+        top: position.y,
+        transform: "translate(-50%, -100%)",
+        background: "rgba(255,255,255,0.98)",
+        border: "1px solid #e0e0e0",
+        borderRadius: 10,
+        padding: "8px 10px",
+        zIndex: 1100,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.14)",
+        minWidth: 180,
+        animation: "fadeIn 140ms ease-out",
+        pointerEvents: "auto",
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          color: "#888",
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+        }}
+      >
+        FONT {hovered && <span style={{ color: "#555" }}>— {hovered}</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {FONTS.map((f) => {
+          const isActive = currentFont === f;
+          return (
+            <button
+              key={f}
+              onClick={() => onFontChange(f)}
+              onMouseEnter={() => setHovered(f)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                padding: "5px 10px",
+                borderRadius: 6,
+                border: isActive ? "2px solid #4a90e2" : "1px solid #ddd",
+                background: isActive ? "#e8f0fc" : "#f7f7f7",
+                cursor: "pointer",
+                fontFamily: f,
+                fontSize: 13,
+                textAlign: "left",
+                color: isActive ? "#2a62c0" : "#333",
+                fontWeight: isActive ? 600 : 400,
+                transition: "background 0.12s",
+              }}
+            >
+              {f}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -190,6 +284,9 @@ function CanvasImage({
       height={it.h}
       stroke={isSelected ? "dodgerblue" : undefined}
       strokeWidth={isSelected ? 2 : 0}
+      shadowColor={isSelected ? "dodgerblue" : undefined}
+      shadowBlur={isSelected ? 10 : 0}
+      shadowOpacity={isSelected ? 0.4 : 0}
       draggable={tool === "selection"}
       onMouseDown={onSelect}
       onTap={onSelect}
@@ -218,6 +315,43 @@ const normalizeTags = (arr) => [
       .map((t) => t.trim()),
   ),
 ];
+
+// ── Zoom button — extracted so hover/press states aren't repeated inline ──
+function ZoomButton({ children, onClick, title, small }) {
+  const [hover, setHover] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => {
+        setHover(false);
+        setPressed(false);
+      }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      title={title}
+      style={{
+        width: 36,
+        height: 28,
+        border: "1px solid #ddd",
+        borderRadius: 6,
+        background: hover ? (pressed ? "#e6e6e6" : "#f5f5f5") : "white",
+        cursor: "pointer",
+        fontSize: small ? 9 : 16,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: "bold",
+        color: "#444",
+        transform: pressed ? "scale(0.96)" : "scale(1)",
+        transition: "background 0.12s, transform 0.08s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function CanvasPage({
@@ -291,7 +425,12 @@ export default function CanvasPage({
 
   const [ctxMenu, setCtxMenu] = useState(null);
 
-  // camRef mirrors cam — pan handlers (created once) read from here, never stale
+  // Session-sticky: user can dismiss the help panel
+  const [showHelp, setShowHelp] = useState(true);
+
+  // Track panning in state too so we can update the cursor
+  const [isPanningUI, setIsPanningUI] = useState(false);
+
   const camRef = useRef({ x: 0, y: 0 });
   useEffect(() => {
     camRef.current = cam;
@@ -424,11 +563,15 @@ export default function CanvasPage({
         const c = { x: 0, y: 0 };
         setCam(c);
         camRef.current = c;
+      } else if (e.key === "Escape") {
+        // Quick-dismiss: close context menu and deselect
+        if (ctxMenu) setCtxMenu(null);
+        else setSelectedId(null);
       }
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [undo, redo, deleteSelected]);
+  }, [undo, redo, deleteSelected, ctxMenu]);
 
   // ── Zoom ──────────────────────────────────────────────────────────────────
   function handleZoom(delta, focalX, focalY) {
@@ -474,6 +617,7 @@ export default function CanvasPage({
     panHandlersRef.current.up = () => {
       if (!isPanningRef.current) return;
       isPanningRef.current = false;
+      setIsPanningUI(false);
       const stage = stageRef.current;
       if (stage) {
         const c = { x: stage.x(), y: stage.y() };
@@ -483,11 +627,12 @@ export default function CanvasPage({
       window.removeEventListener("mousemove", panHandlersRef.current.move);
       window.removeEventListener("mouseup", panHandlersRef.current.up);
     };
-  }, []); // once — stable references forever
+  }, []);
 
   function startRightClickPan(e) {
     if (e.evt.button !== 2) return false;
     isPanningRef.current = true;
+    setIsPanningUI(true);
     lastMouseRef.current = { x: e.evt.clientX, y: e.evt.clientY };
     window.removeEventListener("mousemove", panHandlersRef.current.move);
     window.removeEventListener("mouseup", panHandlersRef.current.up);
@@ -501,7 +646,6 @@ export default function CanvasPage({
     e.cancelBubble = true;
     const stage = stageRef.current;
     const container = stage.container().getBoundingClientRect();
-    // Convert Konva pointer to screen coords
     const ptr = stage.getPointerPosition();
     setCtxMenu({
       id: itemId,
@@ -572,6 +716,7 @@ export default function CanvasPage({
           y: pos.y,
           text: "New text",
           fontSize: 24,
+          fontFamily: FONTS[0],
         },
       ];
       setItems(newItems);
@@ -797,10 +942,6 @@ export default function CanvasPage({
       const data = await res.json();
       if (reqId !== loadReqRef.current) return;
 
-      console.log("loadCanvas data:", data);
-      console.log("bgColor from server:", data?.bgColor);
-      console.log("bgPattern from server:", data?.bgPattern);
-
       const loadedTags = Array.isArray(data?.tags) ? data.tags : [];
       setTags([...loadedTags]);
       setMemoryTags?.([...loadedTags]);
@@ -846,19 +987,13 @@ export default function CanvasPage({
   }, [canvasLoaded, uploadedFiles, addImageFromFile, setUploadedFiles]);
 
   const saveCanvas = useCallback(async () => {
-    console.log("saveCanvas called");
-    console.log("bgColor:", bgColorRef.current);
-    console.log("bgPattern:", bgPatternRef.current);
-    console.log("memoryId:", memoryId);
-    console.log("items:", items.length);
-
     try {
       const form = new FormData();
       form.append("memoryId", String(memoryId));
       form.append("cam", JSON.stringify(camRef.current));
       form.append("zoom", String(zoom));
-      form.append("bgColor", bgColorRef.current); // ← ref, never stale
-      form.append("bgPattern", bgPatternRef.current); // ← ref, never stale
+      form.append("bgColor", bgColorRef.current);
+      form.append("bgPattern", bgPatternRef.current);
       form.append(
         "tags",
         JSON.stringify(tags.length ? tags : normalizeTags(serverData)),
@@ -885,10 +1020,10 @@ export default function CanvasPage({
       if (!res.ok) throw new Error("Save failed");
     } catch (err) {
       console.error(err);
+      throw err;
     }
   }, [memoryId, zoom, tags, items, serverData]);
 
-  // This now only re-runs when saveCanvas actually changes
   useEffect(() => {
     if (saveRef) saveRef.current = saveCanvas;
   }, [saveCanvas]);
@@ -923,20 +1058,7 @@ export default function CanvasPage({
     img.src = proxy(src);
   }
 
-  const zoomBtnStyle = {
-    width: 36,
-    height: 28,
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    background: "white",
-    cursor: "pointer",
-    fontSize: 16,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: "bold",
-    color: "#444",
-  };
+  const stageCursor = cursorForTool(tool, isPanningUI);
 
   return (
     <div
@@ -951,6 +1073,18 @@ export default function CanvasPage({
         touchAction: "none",
       }}
     >
+      {/* Scoped keyframes for little fade-ins */}
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translate(-50%, 6px); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.96); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+
       <div
         style={{
           position: "absolute",
@@ -966,31 +1100,109 @@ export default function CanvasPage({
         {memoryName} (#{memoryId})
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          top: 10,
-          right: 10,
-          background: "rgba(0,0,0,0.6)",
-          color: "white",
-          padding: "6px 10px",
-          borderRadius: 6,
-          fontSize: 11,
-          zIndex: 1000,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        <div>Ctrl+Z / Ctrl+Shift+Z — Undo / Redo</div>
-        <div>Delete / Backspace — Remove selected</div>
-        <div>Scroll — Zoom · Right-drag — Pan</div>
-        <div>+/−/0 — Zoom in/out/reset</div>
-      </div>
+      {/* Help panel — dismissible */}
+      {showHelp ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            background: "rgba(0,0,0,0.6)",
+            color: "white",
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 11,
+            zIndex: 1000,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            maxWidth: 260,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 2,
+            }}
+          >
+            <span style={{ fontWeight: 700, letterSpacing: "0.05em" }}>
+              SHORTCUTS
+            </span>
+            <button
+              onClick={() => setShowHelp(false)}
+              title="Hide shortcuts"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.8)",
+                cursor: "pointer",
+                fontSize: 14,
+                lineHeight: 1,
+                padding: "0 2px",
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div>Ctrl+Z / Ctrl+Shift+Z — Undo / Redo</div>
+          <div>Delete / Backspace — Remove selected</div>
+          <div>Scroll — Zoom · Right-drag — Pan</div>
+          <div>+/−/0 — Zoom in/out/reset · Esc — Deselect</div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowHelp(true)}
+          title="Show keyboard shortcuts"
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            background: "rgba(0,0,0,0.6)",
+            color: "white",
+            border: "none",
+            padding: "4px 8px",
+            borderRadius: 6,
+            fontSize: 11,
+            zIndex: 1000,
+            cursor: "pointer",
+          }}
+        >
+          ?
+        </button>
+      )}
 
       {showPenPicker && (
         <PenColorPicker currentColor={penColor} onColorChange={setPenColor} />
       )}
+
+      {/* Font picker — floats above selected text when using Selection tool */}
+      {(() => {
+        if (tool !== "selection") return null;
+        if (!selectedId || editingTextId) return null;
+        const sel = items.find((i) => i.id === selectedId);
+        if (!sel || sel.type !== "text") return null;
+        const stage = stageRef.current;
+        if (!stage) return null;
+        const box = stage.container().getBoundingClientRect();
+        // Position the picker above the text, centred horizontally
+        const screenX = box.left + sel.x * zoom + cam.x;
+        const screenY = box.top + sel.y * zoom + cam.y - 12;
+        return (
+          <TextFontPicker
+            currentFont={sel.fontFamily ?? FONTS[0]}
+            onFontChange={(f) =>
+              updateItems(
+                items.map((it) =>
+                  it.id === selectedId ? { ...it, fontFamily: f } : it,
+                ),
+              )
+            }
+            position={{ x: screenX, y: screenY }}
+          />
+        );
+      })()}
 
       <div
         style={{
@@ -1008,13 +1220,9 @@ export default function CanvasPage({
           boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
         }}
       >
-        <button
-          onClick={() => handleZoom(0.15)}
-          style={zoomBtnStyle}
-          title="Zoom in (+)"
-        >
+        <ZoomButton onClick={() => handleZoom(0.15)} title="Zoom in (+)">
           ＋
-        </button>
+        </ZoomButton>
         <div
           style={{
             textAlign: "center",
@@ -1022,59 +1230,64 @@ export default function CanvasPage({
             color: "#666",
             padding: "2px 0",
             minWidth: 36,
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           {Math.round(zoom * 100)}%
         </div>
-        <button
-          onClick={() => handleZoom(-0.15)}
-          style={zoomBtnStyle}
-          title="Zoom out (-)"
-        >
+        <ZoomButton onClick={() => handleZoom(-0.15)} title="Zoom out (-)">
           －
-        </button>
-        <button
+        </ZoomButton>
+        <ZoomButton
+          small
           onClick={() => {
             setZoom(1);
             const c = { x: 0, y: 0 };
             setCam(c);
             camRef.current = c;
           }}
-          style={{ ...zoomBtnStyle, fontSize: 9 }}
-          title="Reset (0)"
+          title="Reset zoom and pan (0)"
         >
           FIT
-        </button>
+        </ZoomButton>
       </div>
 
-      {editingTextId && (
-        <input
-          ref={textInputRef}
-          type="text"
-          value={editingTextValue}
-          onChange={(e) => setEditingTextValue(e.target.value)}
-          onBlur={finishEditingText}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") finishEditingText();
-            if (e.key === "Escape") {
-              setEditingTextId(null);
-              setEditingTextValue("");
-            }
-          }}
-          style={{
-            position: "fixed",
-            left: textInputPosition.x,
-            top: textInputPosition.y,
-            fontSize: `${24 * zoom}px`,
-            border: "2px solid dodgerblue",
-            borderRadius: 4,
-            padding: "2px 6px",
-            zIndex: 1000,
-            background: "white",
-            minWidth: 120,
-          }}
-        />
-      )}
+      {editingTextId && (() => {
+        const editItem = items.find((i) => i.id === editingTextId);
+        const editFont = editItem?.fontFamily ?? FONTS[0];
+        const editSize = editItem?.fontSize ?? 24;
+        return (
+          <input
+            ref={textInputRef}
+            type="text"
+            value={editingTextValue}
+            onChange={(e) => setEditingTextValue(e.target.value)}
+            onBlur={finishEditingText}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") finishEditingText();
+              if (e.key === "Escape") {
+                setEditingTextId(null);
+                setEditingTextValue("");
+              }
+            }}
+            style={{
+              position: "fixed",
+              left: textInputPosition.x,
+              top: textInputPosition.y,
+              fontSize: `${editSize * zoom}px`,
+              fontFamily: editFont,
+              border: "2px solid dodgerblue",
+              borderRadius: 4,
+              padding: "2px 6px",
+              zIndex: 1000,
+              background: "white",
+              minWidth: 120,
+              outline: "none",
+              boxShadow: "0 2px 8px rgba(30,144,255,0.25)",
+            }}
+          />
+        );
+      })()}
 
       <div
         style={{
@@ -1083,6 +1296,7 @@ export default function CanvasPage({
           overflow: "hidden",
           userSelect: "none",
           position: "relative",
+          cursor: stageCursor,
         }}
         onContextMenu={(e) => e.preventDefault()}
         onDragOver={(e) => {
@@ -1137,14 +1351,13 @@ export default function CanvasPage({
           if (src) addImageFromUrl(proxy(src), pos.x, pos.y);
         }}
       >
-        {/* ── DEEZER CONTEXT MENU ──────────────────────────────────────────────── */}
+        {/* ── DEEZER CONTEXT MENU ──────────────────────────────────────── */}
         {ctxMenu &&
           (() => {
             const item = items.find((i) => i.id === ctxMenu.id);
             if (!item) return null;
             return (
               <>
-                {/* Click-away backdrop */}
                 <div
                   style={{ position: "fixed", inset: 0, zIndex: 1299 }}
                   onClick={() => setCtxMenu(null)}
@@ -1167,9 +1380,10 @@ export default function CanvasPage({
                     minWidth: 220,
                     fontFamily: "system-ui, sans-serif",
                     fontSize: 13,
+                    transformOrigin: "top left",
+                    animation: "fadeIn 140ms ease-out",
                   }}
                 >
-                  {/* ── Frame ── */}
                   <div
                     style={{
                       fontWeight: 700,
@@ -1208,6 +1422,7 @@ export default function CanvasPage({
                           fontSize: 12,
                           fontWeight: item.frame === f.id ? 600 : 400,
                           color: item.frame === f.id ? "#2a62c0" : "#333",
+                          transition: "background 0.12s",
                         }}
                       >
                         {f.label}
@@ -1215,7 +1430,6 @@ export default function CanvasPage({
                     ))}
                   </div>
 
-                  {/* ── Font family ── */}
                   <div
                     style={{
                       fontWeight: 700,
@@ -1255,6 +1469,7 @@ export default function CanvasPage({
                           fontSize: 13,
                           textAlign: "left",
                           color: item.fontFamily === f ? "#2a62c0" : "#333",
+                          transition: "background 0.12s",
                         }}
                       >
                         {f}
@@ -1262,7 +1477,6 @@ export default function CanvasPage({
                     ))}
                   </div>
 
-                  {/* ── Font colour ── */}
                   <div
                     style={{
                       fontWeight: 700,
@@ -1309,10 +1523,10 @@ export default function CanvasPage({
                           flexShrink: 0,
                           transform:
                             item.fontColor === c ? "scale(1.2)" : "scale(1)",
+                          transition: "transform 0.12s",
                         }}
                       />
                     ))}
-                    {/* Custom colour picker */}
                     <label
                       style={{
                         position: "relative",
@@ -1360,7 +1574,14 @@ export default function CanvasPage({
                       cursor: "pointer",
                       fontSize: 12,
                       color: "#666",
+                      transition: "background 0.12s",
                     }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#ebebeb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "#f5f5f5")
+                    }
                   >
                     Close
                   </button>
@@ -1385,7 +1606,6 @@ export default function CanvasPage({
           onTouchEnd={handleTouchEnd}
           onContextMenu={(e) => e.evt.preventDefault()}
         >
-          {/* Background lives inside Stage — pans & zooms for free, zero extra work */}
           <Layer listening={false}>
             <BackgroundLayer
               pattern={bgPattern}
@@ -1403,10 +1623,17 @@ export default function CanvasPage({
                 keepRatio={["image", "deezer"].includes(
                   items.find((i) => i.id === selectedId)?.type,
                 )}
+                anchorStroke="#4a90e2"
+                anchorFill="#ffffff"
+                anchorSize={8}
+                anchorCornerRadius={2}
+                borderStroke="#4a90e2"
+                borderDash={[4, 4]}
               />
             )}
 
             {items.map((it) => {
+              const isSel = it.id === selectedId;
               if (it.type === "rect")
                 return (
                   <Rect
@@ -1418,8 +1645,11 @@ export default function CanvasPage({
                     width={it.w}
                     height={it.h}
                     fill="transparent"
-                    stroke={it.id === selectedId ? "dodgerblue" : "black"}
-                    strokeWidth={it.id === selectedId ? 2 : 1}
+                    stroke={isSel ? "dodgerblue" : "black"}
+                    strokeWidth={isSel ? 2 : 1}
+                    shadowColor={isSel ? "dodgerblue" : undefined}
+                    shadowBlur={isSel ? 8 : 0}
+                    shadowOpacity={isSel ? 0.35 : 0}
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
                     onTap={() => selectItem(it.id)}
@@ -1451,7 +1681,10 @@ export default function CanvasPage({
                     id={it.id}
                     points={it.points}
                     stroke={it.color ?? "#2d2d2d"}
-                    strokeWidth={3}
+                    strokeWidth={isSel ? 4 : 3}
+                    shadowColor={isSel ? "dodgerblue" : undefined}
+                    shadowBlur={isSel ? 6 : 0}
+                    shadowOpacity={isSel ? 0.4 : 0}
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
                     onTap={() => selectItem(it.id)}
@@ -1481,9 +1714,12 @@ export default function CanvasPage({
                     id={it.id}
                     points={it.points}
                     stroke={it.color ?? "#2d2d2d"}
-                    strokeWidth={3}
+                    strokeWidth={isSel ? 4 : 3}
                     lineCap="round"
                     lineJoin="round"
+                    shadowColor={isSel ? "dodgerblue" : undefined}
+                    shadowBlur={isSel ? 6 : 0}
+                    shadowOpacity={isSel ? 0.4 : 0}
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
                     onTap={() => selectItem(it.id)}
@@ -1516,9 +1752,13 @@ export default function CanvasPage({
                     y={it.y}
                     text={it.text}
                     fontSize={it.fontSize ?? 24}
+                    fontFamily={it.fontFamily ?? FONTS[0]}
                     fill="black"
-                    stroke={it.id === selectedId ? "dodgerblue" : undefined}
-                    strokeWidth={it.id === selectedId ? 1 : 0}
+                    stroke={isSel ? "dodgerblue" : undefined}
+                    strokeWidth={isSel ? 1 : 0}
+                    shadowColor={isSel ? "dodgerblue" : undefined}
+                    shadowBlur={isSel ? 6 : 0}
+                    shadowOpacity={isSel ? 0.3 : 0}
                     draggable={tool === "selection"}
                     onMouseDown={() => selectItem(it.id)}
                     onTap={() => selectItem(it.id)}
@@ -1548,7 +1788,7 @@ export default function CanvasPage({
                   <CanvasImage
                     key={it.id}
                     it={it}
-                    isSelected={it.id === selectedId}
+                    isSelected={isSel}
                     tool={tool}
                     onSelect={() => selectItem(it.id)}
                     onSmoothDragEnd={(id, node) => {
@@ -1566,7 +1806,7 @@ export default function CanvasPage({
                   <DeezerCard
                     key={it.id}
                     it={it}
-                    isSelected={it.id === selectedId}
+                    isSelected={isSel}
                     tool={tool}
                     onSelect={() => selectItem(it.id)}
                     onDragEnd={(e) =>

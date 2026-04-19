@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import "./toolbox.css";
 
 function tbi(i) {
@@ -7,6 +7,63 @@ function tbi(i) {
 
 function Tools({ tool, setTool, onSave, onPickFiles }) {
   const fileInputRef = useRef(null);
+  const [saveState, setSaveState] = useState("idle"); // "idle" | "saving" | "saved"
+
+  const handleSave = async () => {
+    if (saveState !== "idle") return;
+    setSaveState("saving");
+    try {
+      await onSave?.();
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 1400);
+    } catch (err) {
+      console.error(err);
+      setSaveState("idle");
+    }
+  };
+
+  const getSaveButtonStyle = () => {
+    const base = {
+      marginTop: "20px",
+      padding: "10px",
+      borderRadius: "8px",
+      border: "none",
+      color: "white",
+      fontWeight: "bold",
+      cursor: saveState === "idle" ? "pointer" : "default",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      minHeight: 40,
+      transition:
+        "background-color 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease",
+      position: "relative",
+      overflow: "hidden",
+    };
+    if (saveState === "saving") {
+      return {
+        ...base,
+        backgroundColor: "#6aaf6d",
+        transform: "scale(0.97)",
+        boxShadow: "inset 0 2px 6px rgba(0,0,0,0.15)",
+      };
+    }
+    if (saveState === "saved") {
+      return {
+        ...base,
+        backgroundColor: "#2e8b34",
+        transform: "scale(1.04)",
+        boxShadow: "0 4px 14px rgba(46,139,52,0.45)",
+      };
+    }
+    return {
+      ...base,
+      backgroundColor: "#4CAF50",
+      transform: "scale(1)",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+    };
+  };
 
   return (
     <div
@@ -27,6 +84,46 @@ function Tools({ tool, setTool, onSave, onPickFiles }) {
         flexDirection: "column",
       }}
     >
+      {/* keyframes injected once */}
+      <style>{`
+        @keyframes tb-spin { to { transform: rotate(360deg); } }
+        @keyframes tb-pop {
+          0%   { transform: scale(0) rotate(-45deg); opacity: 0; }
+          60%  { transform: scale(1.3) rotate(0deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes tb-shine {
+          0%   { left: -60%; }
+          100% { left: 140%; }
+        }
+        .tb-spinner {
+          width: 16px; height: 16px;
+          border: 2px solid rgba(255,255,255,0.4);
+          border-top-color: #fff;
+          border-radius: 50%;
+          animation: tb-spin 0.7s linear infinite;
+        }
+        .tb-check {
+          display: inline-block;
+          animation: tb-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+          font-size: 18px;
+          line-height: 1;
+        }
+        .tb-shine {
+          position: absolute;
+          top: 0; left: -60%;
+          width: 40%; height: 100%;
+          background: linear-gradient(
+            120deg,
+            transparent 0%,
+            rgba(255,255,255,0.55) 50%,
+            transparent 100%
+          );
+          animation: tb-shine 0.7s ease-out;
+          pointer-events: none;
+        }
+      `}</style>
+
       {["selection", "pencil", "rectangle", "line", "text", "eraser"].map(
         (icon) => (
           <div
@@ -73,19 +170,24 @@ function Tools({ tool, setTool, onSave, onPickFiles }) {
       <button onClick={() => fileInputRef.current?.click()}>Upload</button>
 
       <button
-        onClick={onSave}
-        style={{
-          marginTop: "20px",
-          padding: "10px",
-          borderRadius: "8px",
-          border: "none",
-          backgroundColor: "#4CAF50",
-          color: "white",
-          fontWeight: "bold",
-          cursor: "pointer",
-        }}
+        onClick={handleSave}
+        disabled={saveState !== "idle"}
+        style={getSaveButtonStyle()}
       >
-        Save
+        {saveState === "idle" && <span>Save</span>}
+        {saveState === "saving" && (
+          <>
+            <span className="tb-spinner" />
+            <span>Saving…</span>
+          </>
+        )}
+        {saveState === "saved" && (
+          <>
+            <span className="tb-check">✓</span>
+            <span>Saved</span>
+            <span className="tb-shine" />
+          </>
+        )}
       </button>
     </div>
   );
