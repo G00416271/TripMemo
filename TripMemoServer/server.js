@@ -1,5 +1,8 @@
 import "dotenv/config"; // must be first
 
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
