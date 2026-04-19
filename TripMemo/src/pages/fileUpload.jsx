@@ -1,7 +1,4 @@
-import NavBar from "../NavBar.jsx";
 import UploadFiles from "../uploadFiles.jsx";
-
-document.oncontextmenu = () => false;
 
 export default function FileUpload({
   memoryId,
@@ -12,17 +9,13 @@ export default function FileUpload({
   avatarUrl,
 }) {
   return (
-    <div id="navbar" style={{ display: "flex", padding: 0 }}>
-      <NavBar setActiveTab={setActiveTab} />
-      <div style={{ display: "flex", padding: 10 }}>
-        <UploadFiles
-          memoryId={memoryId}
-          memoryName={memoryName}
-          onFilesReady={onFilesReady}
-          onUploadComplete={onUploadComplete}
-          avatarUrl={avatarUrl}
-        />
-      </div>
-    </div>
+    <UploadFiles
+      memoryId={memoryId}
+      memoryName={memoryName}
+      onFilesReady={onFilesReady}
+      onUploadComplete={onUploadComplete}
+      avatarUrl={avatarUrl}
+      onBack={() => setActiveTab("create")}
+    />
   );
 }
