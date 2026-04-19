@@ -334,23 +334,25 @@ app.post("/login", upload.none(), async (req, res) => {
 // });
 
 //adding friends
-// Search users by username
 app.get("/users/search", async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) return res.json([]);
 
+    const requestingUserId = req.cookies?.session; // ← was req.session?.userId
+
     const [rows] = await db.execute(
       `SELECT user_id, username, first_name, last_name, avatar_url
-FROM users
-WHERE username LIKE ?
-LIMIT 10`,
-      [`%${query}%`],
+       FROM users
+       WHERE (username LIKE ? OR first_name LIKE ? OR last_name LIKE ?)
+       AND user_id != ?
+       LIMIT 10`,
+      [`%${query}%`, `%${query}%`, `%${query}%`, requestingUserId]
     );
 
     res.json(rows);
   } catch (error) {
-    console.error("🔥 /users/search error:", error); // ADD THIS
+    console.error("🔥 /users/search error:", error);
     res.status(500).json({ error: "Search failed" });
   }
 });
@@ -649,7 +651,7 @@ app.post("/register", async (req, res) => {
     maxAge: 86400000,
   });
 
-  return res.status(200).json(user);
+  return res.status(201).json(user);
 });
 
 //auth after login
@@ -758,6 +760,36 @@ app.get("/api/deezer/search", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Deezer fetch failed" });
+  }
+});
+
+// ── EXPLORE: public memories ──────────────────────────────
+// Add this route to server.js (before the server start block)
+
+app.get("/memories/explore", async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT 
+         m.memory_id,
+         m.title,
+         m.created_at,
+         m.privacy_level,
+         m.user_id,
+         u.username,
+         u.first_name,
+         u.last_name,
+         u.avatar_url
+       FROM memories m
+       JOIN users u ON u.user_id = m.user_id
+       WHERE m.privacy_level = 'public'
+         AND m.deleted_at IS NULL
+       ORDER BY m.created_at DESC
+       LIMIT 100`,
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Explore error:", error);
+    res.status(500).json({ error: "Failed to fetch public memories" });
   }
 });
 

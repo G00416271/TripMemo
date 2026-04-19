@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from "react";
 
 import CanvasThumbnail from "./CanvasThumbnail";
-import { FiArrowLeft, FiPlus, FiMoreVertical, FiShare2, FiTrash2 } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiPlus,
+  FiMoreVertical,
+  FiShare2,
+  FiTrash2,
+} from "react-icons/fi";
 
-export default function Memories({ setActiveTab, setSelectedMemoryId, setSelectedMemoryName, setUploadedFiles, userId }) {
+export default function Memories({
+  setActiveTab,
+  setSelectedMemoryId,
+  setSelectedMemoryName,
+  setUploadedFiles,
+  userId,
+}) {
   const [memories, setMemories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [memoryName, setMemoryName] = useState("");
@@ -11,15 +23,18 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
   const [activeMenu, setActiveMenu] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memoryToDelete, setMemoryToDelete] = useState(null);
+  const [privacy, setPrivacy] = useState("public");
 
-
-
-  const DBentry = async (user_id, mn) => {
+  const DBentry = async (user_id, mn, privacy_level) => {
     const fd = new FormData();
     fd.append("action", "create");
     fd.append("user_id", String(user_id));
     fd.append("title", mn);
-    const res = await fetch("http://localhost:5000/memories", { method: "POST", body: fd });
+    fd.append("privacy_level", privacy_level);
+    const res = await fetch("http://localhost:5000/memories", {
+      method: "POST",
+      body: fd,
+    });
     if (!res.ok) throw new Error("Create failed");
     return res.json();
   };
@@ -29,26 +44,41 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     fd.append("action", "delete");
     fd.append("memory_id", String(memory_id));
     fd.append("user_id", String(userId));
-    const res = await fetch("http://localhost:5000/memories", { method: "POST", body: fd });
+    const res = await fetch("http://localhost:5000/memories", {
+      method: "POST",
+      body: fd,
+    });
     if (!res.ok) throw new Error("Memory delete failed");
     return res.json();
   };
 
   const deleteCanvas = async (memoryId) => {
-    const res = await fetch(`http://localhost:5000/api/canvas/delete?memoryId=${memoryId}`, { method: "DELETE" });
+    const res = await fetch(
+      `http://localhost:5000/api/canvas/delete?memoryId=${memoryId}`,
+      { method: "DELETE" },
+    );
     if (res.status === 404) return;
     if (!res.ok) throw new Error(`Canvas delete failed: ${res.status}`);
   };
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     const fd = new FormData();
     fd.append("action", "fetch");
     fd.append("user_id", userId);
     fetch("http://localhost:5000/memories", { method: "POST", body: fd })
       .then((res) => res.json())
-      .then((data) => { setMemories(data); setLoading(false); })
-      .catch((err) => { console.error("Error:", err); setLoading(false); });
+      .then((data) => {
+        setMemories(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error:", err);
+        setLoading(false);
+      });
   }, [userId]);
 
   const handleSubmit = async (e) => {
@@ -60,13 +90,16 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
       return;
     }
     try {
-      const created = await DBentry(userId, title);
+      const created = await DBentry(userId, title, privacy);
       if (created?.memory) {
         setMemories((prev) => [...prev, created.memory]);
         setMemoryName("");
+        setPrivacy("public");
         setShowForm(false);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const toggleMenu = (memoryId, e) => {
@@ -88,14 +121,37 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     setActiveMenu(null);
   };
 
+  const handlePrivacyToggle = async (memoryId, currentPrivacy) => {
+    // treat null/undefined as "public" before toggling
+    const resolved = currentPrivacy ?? "public";
+    const newPrivacy = resolved === "public" ? "private" : "public";
+
+    const fd = new FormData();
+    fd.append("action", "update_privacy");
+    fd.append("memory_id", String(memoryId));
+    fd.append("privacy_level", newPrivacy);
+
+    try {
+      await fetch("http://localhost:5000/memories", { method: "POST", body: fd });
+      setMemories((prev) =>
+        prev.map((m) =>
+          m.memory_id === memoryId ? { ...m, privacy_level: newPrivacy } : m,
+        ),
+      );
+    } catch (err) {
+      console.error("Failed to update privacy:", err);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!memoryToDelete) return;
     try {
       await deleteCanvas(memoryToDelete);
       await DBdelete(memoryToDelete);
       setMemories((prev) => prev.filter((m) => m.memory_id !== memoryToDelete));
-    } catch (err) { console.error(err); }
-    finally {
+    } catch (err) {
+      console.error(err);
+    } finally {
       setShowDeleteConfirm(false);
       setMemoryToDelete(null);
     }
@@ -106,7 +162,9 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     setSelectedMemoryId(memoryId);
     setSelectedMemoryName(memoryTitle);
     try {
-      const res = await fetch(`http://localhost:5000/api/canvas/load?memoryId=${memoryId}`);
+      const res = await fetch(
+        `http://localhost:5000/api/canvas/load?memoryId=${memoryId}`,
+      );
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();
       setActiveTab(data.items?.length > 0 ? "canvas" : "upload");
@@ -116,9 +174,11 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     }
   };
 
+  // Resolves null/undefined privacy to "public"
+  const resolvePrivacy = (raw) => raw ?? "public";
+
   return (
     <div style={styles.page}>
-
       {/* ── Overlay ── */}
       {(showForm || showDeleteConfirm) && (
         <div
@@ -126,18 +186,25 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
           onClick={() => {
             if (showForm) { setShowForm(false); setMemoryName(""); }
             if (showDeleteConfirm) { setShowDeleteConfirm(false); setMemoryToDelete(null); }
-            
           }}
         />
       )}
 
-      {/* Click-outside to close dropdown — no blur */}
+      {/* Click-outside to close dropdown */}
       {activeMenu && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 20 }} onClick={() => setActiveMenu(null)} />
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 20 }}
+          onClick={() => setActiveMenu(null)}
+        />
       )}
 
       {/* ── Create form sheet ── */}
-      <div style={{ ...styles.sheet, transform: showForm ? "translateY(0)" : "translateY(-110%)" }}>
+      <div
+        style={{
+          ...styles.sheet,
+          transform: showForm ? "translateY(0)" : "translateY(-110%)",
+        }}
+      >
         <h2 style={styles.sheetTitle}>New Scrapbook</h2>
         <input
           type="text"
@@ -148,8 +215,40 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
           style={styles.sheetInput}
           autoFocus={showForm}
         />
+
+        {/* Privacy toggle */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {["public", "private", "friends"].map((level) => (
+            <button
+              key={level}
+              onClick={() => setPrivacy(level)}
+              style={{
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: 10,
+                border: "1.5px solid",
+                borderColor: privacy === level ? "#FF0055" : "rgba(26,22,37,0.1)",
+                background: privacy === level ? "rgba(255,0,85,0.08)" : "#f4f5f7",
+                color: privacy === level ? "#FF0055" : "#9a9a9a",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                textTransform: "capitalize",
+                transition: "all 0.18s",
+              }}
+            >
+              {level === "public" ? "🌍" : level === "private" ? "🔒" : "👥"}{" "}
+              {level}
+            </button>
+          ))}
+        </div>
+
         <div style={styles.sheetActions}>
-          <button style={styles.btnCancel} onClick={() => { setShowForm(false); setMemoryName(""); }}>
+          <button
+            style={styles.btnCancel}
+            onClick={() => { setShowForm(false); setMemoryName(""); }}
+          >
             Cancel
           </button>
           <button style={styles.btnCreate} onClick={handleSubmit}>
@@ -159,14 +258,27 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
       </div>
 
       {/* ── Delete confirm sheet ── */}
-      <div style={{ ...styles.sheet, transform: showDeleteConfirm ? "translateY(0)" : "translateY(-110%)" }}>
+      <div
+        style={{
+          ...styles.sheet,
+          transform: showDeleteConfirm ? "translateY(0)" : "translateY(-110%)",
+        }}
+      >
         <h2 style={styles.sheetTitle}>Delete Scrapbook?</h2>
-        <p style={styles.sheetBody}>This action can't be undone. All canvas content will be permanently removed.</p>
+        <p style={styles.sheetBody}>
+          This action can't be undone. All canvas content will be permanently removed.
+        </p>
         <div style={styles.sheetActions}>
-          <button style={styles.btnCancel} onClick={() => { setShowDeleteConfirm(false); setMemoryToDelete(null); }}>
+          <button
+            style={styles.btnCancel}
+            onClick={() => { setShowDeleteConfirm(false); setMemoryToDelete(null); }}
+          >
             Cancel
           </button>
-          <button style={{ ...styles.btnCreate, background: "#FF3B30" }} onClick={confirmDelete}>
+          <button
+            style={{ ...styles.btnCreate, background: "#FF3B30" }}
+            onClick={confirmDelete}
+          >
             Delete
           </button>
         </div>
@@ -208,58 +320,99 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
             <span style={styles.addLabel}>New Scrapbook</span>
           </button>
 
-          {memories.map((memory) => (
-            <div
-              key={memory.memory_id}
-              style={styles.card}
-              onClick={() => handleCardClick(memory.memory_id, memory.title)}
-            >
-              {/* Three-dot menu */}
-              <button
-                style={styles.menuBtn}
-                onClick={(e) => toggleMenu(memory.memory_id, e)}
-                aria-label="Options"
+          {memories.map((memory) => {
+            const level = resolvePrivacy(memory.privacy_level);
+            const isPublic = level === "public";
+            const isFriends = level === "friends";
+
+            const badgeBg = isPublic
+              ? "rgba(0,216,255,0.15)"
+              : isFriends
+              ? "rgba(178,75,243,0.15)"
+              : "rgba(26,22,37,0.12)";
+            const badgeColor = isPublic ? "#00a8c8" : isFriends ? "#b24bf3" : "#555";
+            const badgeEmoji = isPublic ? "🌍" : isFriends ? "👥" : "🔒";
+
+            return (
+              <div
+                key={memory.memory_id}
+                style={styles.card}
+                onClick={() => handleCardClick(memory.memory_id, memory.title)}
               >
-                <FiMoreVertical size={16} />
-              </button>
+                {/* Three-dot menu */}
+                <button
+                  style={styles.menuBtn}
+                  onClick={(e) => toggleMenu(memory.memory_id, e)}
+                  aria-label="Options"
+                >
+                  <FiMoreVertical size={16} />
+                </button>
 
-              {/* Dropdown */}
-              {activeMenu === memory.memory_id && (
-                <div style={styles.dropdown}>
-                  <button style={styles.dropdownItem} onClick={(e) => handleShareClick(memory.memory_id, e)}>
-                    <FiShare2 size={14} />
-                    Share
-                  </button>
-                  <button style={{ ...styles.dropdownItem, color: "#FF3B30" }} onClick={(e) => handleDeleteClick(memory.memory_id, e)}>
-                    <FiTrash2 size={14} />
-                    Delete
-                  </button>
+                {/* Privacy badge */}
+                <div style={{ ...styles.privacyBadge, background: badgeBg, color: badgeColor }}>
+                  {badgeEmoji} {level.charAt(0).toUpperCase() + level.slice(1)}
                 </div>
-              )}
 
-              {/* Canvas thumbnail */}
-              <div style={styles.thumbnail}>
-                <CanvasThumbnail
-                  memoryId={memory.memory_id}
-                  memoryTitle={memory.title}
-                  width={320}
-                  height={180}
-                  showShareBtn={false}
-                  showExportBtn={false}
-                />
-              </div>
+                {/* Dropdown */}
+                {activeMenu === memory.memory_id && (
+                  <div style={styles.dropdown}>
+                    <button
+                      style={styles.dropdownItem}
+                      onClick={(e) => handleShareClick(memory.memory_id, e)}
+                    >
+                      <FiShare2 size={14} />
+                      Share
+                    </button>
 
-              {/* Card footer */}
-              <div style={styles.cardFooter}>
-                <h3 style={styles.cardTitle}>{memory.title}</h3>
-                <p style={styles.cardDate}>
-                  {new Date(memory.created_at).toLocaleDateString("en-GB", {
-                    day: "2-digit", month: "short", year: "numeric"
-                  })}
-                </p>
+                    {/* Privacy toggle — label shows what it will CHANGE TO */}
+                    <button
+                      style={styles.dropdownItem}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrivacyToggle(memory.memory_id, level);
+                        setActiveMenu(null);
+                      }}
+                    >
+                      {isPublic ? "🔒" : "🌍"}
+                      {isPublic ? " Make Private" : " Make Public"}
+                    </button>
+
+                    <button
+                      style={{ ...styles.dropdownItem, color: "#FF3B30" }}
+                      onClick={(e) => handleDeleteClick(memory.memory_id, e)}
+                    >
+                      <FiTrash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
+                )}
+
+                {/* Canvas thumbnail */}
+                <div style={styles.thumbnail}>
+                  <CanvasThumbnail
+                    memoryId={memory.memory_id}
+                    memoryTitle={memory.title}
+                    width={320}
+                    height={180}
+                    showShareBtn={false}
+                    showExportBtn={false}
+                  />
+                </div>
+
+                {/* Card footer */}
+                <div style={styles.cardFooter}>
+                  <h3 style={styles.cardTitle}>{memory.title}</h3>
+                  <p style={styles.cardDate}>
+                    {new Date(memory.created_at).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -277,26 +430,16 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
           background: rgba(255,0,85,0.06) !important;
           transform: translateY(-2px) !important;
         }
-        .mem-menu-btn:hover {
-          background: rgba(26,22,37,0.08) !important;
-        }
-        .mem-create-btn:hover {
-          opacity: 0.88;
-          transform: translateY(-1px);
-        }
-        .mem-back-btn:hover {
-          color: #151515 !important;
-          background: #f4f5f7 !important;
-        }
-        .mem-dropdown-item:hover {
-          background: #f4f5f7 !important;
-        }
+        .mem-menu-btn:hover { background: rgba(26,22,37,0.08) !important; }
+        .mem-create-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .mem-back-btn:hover { color: #151515 !important; background: #f4f5f7 !important; }
+        .mem-dropdown-item:hover { background: #f4f5f7 !important; }
       `}</style>
     </div>
   );
 }
 
-// ── Styles object ─────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────
 const styles = {
   page: {
     minHeight: "100%",
@@ -467,6 +610,19 @@ const styles = {
     transition: "background 0.18s",
     boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
   },
+  privacyBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 5,
+    padding: "4px 10px",
+    borderRadius: 20,
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    backdropFilter: "blur(6px)",
+    textTransform: "capitalize",
+  },
   dropdown: {
     position: "absolute",
     top: 46,
@@ -477,7 +633,7 @@ const styles = {
     boxShadow: "0 8px 28px rgba(26,22,37,0.16)",
     border: "1.5px solid rgba(26,22,37,0.07)",
     overflow: "hidden",
-    minWidth: 140,
+    minWidth: 155,
   },
   dropdownItem: {
     display: "flex",
@@ -560,10 +716,7 @@ const styles = {
     padding: "80px 24px",
     textAlign: "center",
   },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
+  emptyIcon: { fontSize: 56, marginBottom: 16 },
   emptyTitle: {
     fontFamily: "'Nunito', sans-serif",
     fontSize: 20,

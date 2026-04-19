@@ -9,9 +9,23 @@ import ViewOnlyCanvas from "./ViewOnlyCanvas";
 import LoginPage, { SignupPage } from "./LoginPage";
 import "./Auth.css";
 
-import { FiMenu, FiMapPin, FiMessageCircle, FiArrowLeft, FiUser } from "react-icons/fi";
+import {
+  FiMenu,
+  FiMapPin,
+  FiCompass,
+  FiMessageCircle,
+  FiArrowLeft,
+  FiUser,
+} from "react-icons/fi";
 import { AiOutlineSearch, AiOutlineHeart, AiFillHome } from "react-icons/ai";
-import { MdFlight, MdHotel, MdTrain, MdDirectionsBus, MdEmergency, MdCollectionsBookmark } from "react-icons/md";
+import {
+  MdFlight,
+  MdHotel,
+  MdTrain,
+  MdDirectionsBus,
+  MdEmergency,
+  MdCollectionsBookmark,
+} from "react-icons/md";
 import { IoIosAirplane } from "react-icons/io";
 import { FaTrophy } from "react-icons/fa";
 import { IoCreate } from "react-icons/io5";
@@ -37,6 +51,8 @@ import BucketListModal from "./BucketListModal";
 import ProfilePage from "./ProfilePage";
 import GroupChat from "./GroupChat";
 import CanvasThumbnail from "./CanvasThumbnail";
+import ExplorePage from "./ExplorePage";
+
 
 const recentTrips = [
   { id: 1, destination: "London", days: 5, rating: 4.8, image: "gradient1" },
@@ -99,30 +115,40 @@ function App() {
         setUserId(user.user_id);
         setUserProfile(user);
         setIsAuthenticated(true);
-        fetch(`http://localhost:5000/users/${user.user_id}/friends`, { credentials: "include" })
-          .then(res => res.json())
-          .then(data => setFriends(data));
-        fetch(`http://localhost:5000/sos-contacts/${user.user_id}`, { credentials: "include" })
-          .then(res => res.json())
-          .then(data => setSosContacts(data));
-        fetch(`http://localhost:5000/bucket-lists/${user.user_id}`, { credentials: "include" })
-          .then(res => res.json())
-          .then(data => setBucketLists(data));
-        fetch(`http://localhost:5000/saved-places/${user.user_id}`, { credentials: "include" })
-          .then(res => res.json())
-          .then(data => setSavedPlaces(data));
-        fetch(`http://localhost:5000/groups/user/${user.user_id}`, { credentials: "include" })
-          .then(res => res.json())
-          .then(data => setGroups(data));
+        fetch(`http://localhost:5000/users/${user.user_id}/friends`, {
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => setFriends(data));
+        fetch(`http://localhost:5000/sos-contacts/${user.user_id}`, {
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => setSosContacts(data));
+        fetch(`http://localhost:5000/bucket-lists/${user.user_id}`, {
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => setBucketLists(data));
+        fetch(`http://localhost:5000/saved-places/${user.user_id}`, {
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => setSavedPlaces(data));
+        fetch(`http://localhost:5000/groups/user/${user.user_id}`, {
+          credentials: "include",
+        })
+          .then((res) => res.json())
+          .then((data) => setGroups(data));
 
         // Fetch real memories for scrapbooks section
         const fd = new FormData();
         fd.append("action", "fetch");
         fd.append("user_id", user.user_id);
         fetch("http://localhost:5000/memories", { method: "POST", body: fd })
-          .then(res => res.json())
-          .then(data => setScrapbooks(data))
-          .catch(err => console.error("Failed to fetch scrapbooks:", err));
+          .then((res) => res.json())
+          .then((data) => setScrapbooks(data))
+          .catch((err) => console.error("Failed to fetch scrapbooks:", err));
       });
   }, []);
 
@@ -134,7 +160,7 @@ function App() {
   if (!isAuthenticated) {
     if (showSignup) {
       return (
-        <div style={{ height: '100dvh', overflowY: 'auto' }}>
+        <div style={{ height: "100dvh", overflowY: "auto" }}>
           <SignupPage
             onSignup={(name) => {
               setFriends([]);
@@ -151,7 +177,7 @@ function App() {
       );
     }
     return (
-      <div style={{ height: '100dvh', overflowY: 'auto' }}>
+      <div style={{ height: "100dvh", overflowY: "auto" }}>
         <LoginPage
           onLogin={(name, id) => {
             setFriends([]);
@@ -176,7 +202,10 @@ function App() {
   }
 
   const handleLogout = async () => {
-    await fetch("http://localhost:5000/logout", { method: "POST", credentials: "include" });
+    await fetch("http://localhost:5000/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     setIsAuthenticated(false);
     setUserName("");
     setUserId(null);
@@ -194,7 +223,9 @@ function App() {
 
   const fetchFriends = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/users/${id}/friends`, { credentials: "include" });
+      const res = await fetch(`http://localhost:5000/users/${id}/friends`, {
+        credentials: "include",
+      });
       const data = await res.json();
       setFriends(data);
     } catch (err) {
@@ -208,9 +239,9 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, friendId: friend.user_id }),
-        credentials: "include"
+        credentials: "include",
       });
-      setSosContacts(prev => [...prev, friend]);
+      setSosContacts((prev) => [...prev, friend]);
     } catch (err) {
       console.error("Failed to add SOS contact:", err);
     }
@@ -220,9 +251,9 @@ function App() {
     try {
       await fetch(`http://localhost:5000/sos-contacts/${userId}/${friendId}`, {
         method: "DELETE",
-        credentials: "include"
+        credentials: "include",
       });
-      setSosContacts(prev => prev.filter(c => c.user_id !== friendId));
+      setSosContacts((prev) => prev.filter((c) => c.user_id !== friendId));
     } catch (err) {
       console.error("Failed to remove SOS contact:", err);
     }
@@ -234,10 +265,10 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, name, latitude, longitude }),
-        credentials: "include"
+        credentials: "include",
       });
       const newPlace = await res.json();
-      setSavedPlaces(prev => [...prev, newPlace]);
+      setSavedPlaces((prev) => [...prev, newPlace]);
     } catch (err) {
       console.error("Failed to save place:", err);
     }
@@ -247,9 +278,9 @@ function App() {
     try {
       await fetch(`http://localhost:5000/saved-places/${placeId}`, {
         method: "DELETE",
-        credentials: "include"
+        credentials: "include",
       });
-      setSavedPlaces(prev => prev.filter(p => p.id !== placeId));
+      setSavedPlaces((prev) => prev.filter((p) => p.id !== placeId));
     } catch (err) {
       console.error("Failed to remove place:", err);
     }
@@ -261,10 +292,10 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, title }),
-        credentials: "include"
+        credentials: "include",
       });
       const newList = await res.json();
-      setBucketLists(prev => [newList, ...prev]);
+      setBucketLists((prev) => [newList, ...prev]);
       return newList;
     } catch (err) {
       console.error("Failed to create bucket list:", err);
@@ -275,9 +306,9 @@ function App() {
     try {
       await fetch(`http://localhost:5000/bucket-lists/${id}`, {
         method: "DELETE",
-        credentials: "include"
+        credentials: "include",
       });
-      setBucketLists(prev => prev.filter(b => b.id !== id));
+      setBucketLists((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
       console.error("Failed to delete bucket list:", err);
     }
@@ -289,9 +320,11 @@ function App() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
-        credentials: "include"
+        credentials: "include",
       });
-      setBucketLists(prev => prev.map(b => b.id === id ? { ...b, title } : b));
+      setBucketLists((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, title } : b)),
+      );
     } catch (err) {
       console.error("Failed to rename bucket list:", err);
     }
@@ -301,11 +334,17 @@ function App() {
     try {
       await fetch(`http://localhost:5000/bucket-lists/${list.id}/accessed`, {
         method: "PATCH",
-        credentials: "include"
+        credentials: "include",
       });
-      setBucketLists(prev => {
-        const updated = prev.map(b => b.id === list.id ? { ...b, last_accessed: new Date().toISOString() } : b);
-        return updated.sort((a, b) => new Date(b.last_accessed) - new Date(a.last_accessed));
+      setBucketLists((prev) => {
+        const updated = prev.map((b) =>
+          b.id === list.id
+            ? { ...b, last_accessed: new Date().toISOString() }
+            : b,
+        );
+        return updated.sort(
+          (a, b) => new Date(b.last_accessed) - new Date(a.last_accessed),
+        );
       });
     } catch (err) {
       console.error("Failed to update last accessed:", err);
@@ -320,10 +359,10 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, createdBy: userId, memberIds }),
-        credentials: "include"
+        credentials: "include",
       });
       const newGroup = await res.json();
-      setGroups(prev => [newGroup, ...prev]);
+      setGroups((prev) => [newGroup, ...prev]);
       setSelectedGroup(newGroup);
       setActiveTab("groupchat");
     } catch (err) {
@@ -332,44 +371,51 @@ function App() {
   };
 
   const leaveGroup = (groupId) => {
-    setGroups(prev => prev.filter(g => g.id !== groupId));
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
     setActiveTab("friends");
   };
 
-const handleSearch = async (e) => {
-  const query = e.target.value;
-  setSearchQuery(query);
+  const handleSearch = async (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
 
-  if (!query.trim()) {
-    setSearchResults([]);
-    return;
-  }
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-  try {
-    const res = await fetch(`http://localhost:5000/users/search?query=${query}`, {
-      credentials: "include"
-    });
-
-    const data = await res.json();
-
-    // ✅ THIS LINE FIXES YOUR CRASH
-    setSearchResults(Array.isArray(data) ? data : []);
-
-  } catch (err) {
-    console.error("Search failed:", err);
-    setSearchResults([]); // fallback
-  }
-};
-  const handleAddFriend = async (targetUserId) => {
-    if (!userId) { alert("You must be logged in to add friends"); return; }
     try {
-      await fetch(`http://localhost:5000/users/friend-request/${targetUserId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ senderId: userId }),
-        credentials: "include"
-      });
-      setSentRequests(prev => [...prev, targetUserId]);
+      const res = await fetch(
+        `http://localhost:5000/users/search?query=${query}`,
+        {
+          credentials: "include",
+        },
+      );
+
+      const data = await res.json();
+
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setSearchResults([]); // fallback
+    }
+  };
+  const handleAddFriend = async (targetUserId) => {
+    if (!userId) {
+      alert("You must be logged in to add friends");
+      return;
+    }
+    try {
+      await fetch(
+        `http://localhost:5000/users/friend-request/${targetUserId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ senderId: userId }),
+          credentials: "include",
+        },
+      );
+      setSentRequests((prev) => [...prev, targetUserId]);
     } catch (err) {
       console.error("Failed to send request:", err);
     }
@@ -381,7 +427,9 @@ const handleSearch = async (e) => {
     setSelectedMemoryId(memory.memory_id);
     setSelectedMemoryName(memory.title);
     try {
-      const res = await fetch(`http://localhost:5000/api/canvas/load?memoryId=${memory.memory_id}`);
+      const res = await fetch(
+        `http://localhost:5000/api/canvas/load?memoryId=${memory.memory_id}`,
+      );
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();
       setActiveTab(data.items?.length > 0 ? "canvas" : "upload");
@@ -393,20 +441,26 @@ const handleSearch = async (e) => {
 
   return (
     <div className="app-root">
-
       {activeTab === "home" && (
         <header className="header">
           <div className="header-left">
             <img
               className="avatar"
-              src={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${userId}`}
+              src={
+                avatarUrl ||
+                `https://api.dicebear.com/7.x/adventurer/svg?seed=${userId}`
+              }
               alt="Profile"
             />
             <div>
               <p className="hey-text">Hello, {userName} 👋</p>
             </div>
           </div>
-          <button className="icon-pill" onClick={() => setIsMenuOpen(true)} aria-label="Open menu">
+          <button
+            className="icon-pill"
+            onClick={() => setIsMenuOpen(true)}
+            aria-label="Open menu"
+          >
             <FiMenu />
           </button>
         </header>
@@ -414,10 +468,17 @@ const handleSearch = async (e) => {
 
       {activeTab === "maps" && (
         <header className="header">
-          <button className="icon-pill" onClick={() => setActiveTab("home")} aria-label="Back to home">
+          <button
+            className="icon-pill"
+            onClick={() => setActiveTab("home")}
+            aria-label="Back to home"
+          >
             <FiArrowLeft />
           </button>
-          <div className="header-left" style={{ flex: 1, justifyContent: "center" }}>
+          <div
+            className="header-left"
+            style={{ flex: 1, justifyContent: "center" }}
+          >
             <p className="hey-text">Map View</p>
           </div>
         </header>
@@ -431,7 +492,10 @@ const handleSearch = async (e) => {
           setIsMenuOpen(false);
           setActiveTab("profile");
         }}
-        avatarUrl={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${userId}`}
+        avatarUrl={
+          avatarUrl ||
+          `https://api.dicebear.com/7.x/adventurer/svg?seed=${userId}`
+        }
         userName={userName}
         userEmail={userProfile?.email || ""}
       />
@@ -447,15 +511,36 @@ const handleSearch = async (e) => {
               onChange={handleSearch}
             />
             {searchQuery && (
-              <button className="search-clear-btn" onClick={() => { setSearchQuery(""); setSearchResults([]); }}>×</button>
+              <button
+                className="search-clear-btn"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+              >
+                ×
+              </button>
             )}
           </div>
           {searchResults
-            .filter(user => !friends.some(f => f.user_id === user.user_id))
-            .map(user => (
+            .filter((user) => !friends.some((f) => f.user_id === user.user_id))
+            .map((user) => (
               <div key={user.user_id} className="search-result-card">
-                <div className="search-result-info">
-                  <p className="search-result-name">{user.first_name} {user.last_name}</p>
+                <div
+                  className="search-result-info"
+                  style={{ display: "flex", alignItems: "center", gap: 10 }}
+                >
+                  <img
+                    src={
+                      user.avatar_url ||
+                      `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.user_id}`
+                    }
+                    alt={user.first_name}
+                    className="friend-avatar"
+                  />
+                  <p className="search-result-name">
+                    {user.first_name} {user.last_name}
+                  </p>
                 </div>
                 <button
                   className={`add-friend-btn ${sentRequests.includes(user.user_id) ? "pending" : ""}`}
@@ -465,13 +550,13 @@ const handleSearch = async (e) => {
                   {sentRequests.includes(user.user_id) ? "Pending" : "Add"}
                 </button>
               </div>
-            ))
-          }
+            ))}
         </section>
       )}
 
-      <main className={`content ${activeTab === "maps" ? "content--maps" : ""}`}>
-
+      <main
+        className={`content ${activeTab === "maps" ? "content--maps" : ""}`}
+      >
         {activeTab === "friends" && (
           <FriendsPage
             userId={userId}
@@ -572,7 +657,14 @@ const handleSearch = async (e) => {
               </button>
 
               {scrapbooks.length === 0 ? (
-                <p style={{ color: "#aaa", fontSize: "13px", alignSelf: "center", paddingRight: 16 }}>
+                <p
+                  style={{
+                    color: "#aaa",
+                    fontSize: "13px",
+                    alignSelf: "center",
+                    paddingRight: 16,
+                  }}
+                >
                   No scrapbooks yet — create one!
                 </p>
               ) : (
@@ -584,7 +676,10 @@ const handleSearch = async (e) => {
                     style={{ cursor: "pointer", minWidth: 180, maxWidth: 220 }}
                   >
                     {/* Live canvas thumbnail instead of placeholder gradient */}
-                    <div className="scrap-image" style={{ padding: 0, overflow: "hidden" }}>
+                    <div
+                      className="scrap-image"
+                      style={{ padding: 0, overflow: "hidden" }}
+                    >
                       <CanvasThumbnail
                         memoryId={memory.memory_id}
                         memoryTitle={memory.title}
@@ -597,11 +692,14 @@ const handleSearch = async (e) => {
                     <div className="scrap-info">
                       <h3>{memory.title}</h3>
                       <p className="scrap-location">
-                        {new Date(memory.created_at).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {new Date(memory.created_at).toLocaleDateString(
+                          "en-GB",
+                          {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          },
+                        )}
                       </p>
                     </div>
                   </article>
@@ -612,16 +710,21 @@ const handleSearch = async (e) => {
             <SectionHeader title="Friends" showMore />
             <div className="friend-scroll">
               {friends.length === 0 ? (
-                <p style={{ color: "#aaa", fontSize: "13px", padding: "0 16px" }}>
+                <p
+                  style={{ color: "#aaa", fontSize: "13px", padding: "0 16px" }}
+                >
                   No friends yet — search for people above!
                 </p>
               ) : (
-                friends.map(friend => (
+                friends.map((friend) => (
                   <FriendPreview
                     key={friend.user_id}
                     icon={
                       <img
-                        src={friend.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${friend.user_id}`}
+                        src={
+                          friend.avatar_url ||
+                          `https://api.dicebear.com/7.x/adventurer/svg?seed=${friend.user_id}`
+                        }
                         className="friend-avatar"
                         alt={friend.username}
                       />
@@ -636,13 +739,20 @@ const handleSearch = async (e) => {
               )}
             </div>
 
-            <SectionHeader title="Bucket List" showMore onTitleClick={() => setActiveTab("bucketlists")} />
+            <SectionHeader
+              title="Bucket List"
+              showMore
+              onTitleClick={() => setActiveTab("bucketlists")}
+            />
             <div className="horizontal-scroll">
-              <button className="bList-add-btn" onClick={() => setShowBucketModal(true)}>
+              <button
+                className="bList-add-btn"
+                onClick={() => setShowBucketModal(true)}
+              >
                 <div className="bList-add-icon">+</div>
                 <p>New List</p>
               </button>
-              {bucketLists.map(list => (
+              {bucketLists.map((list) => (
                 <article
                   key={list.id}
                   className="bList-card"
@@ -660,9 +770,21 @@ const handleSearch = async (e) => {
 
             <SectionHeader title="Travel Tips" />
             <div className="tips-container">
-              <TipCard emoji="💡" title="Pack Light" description="Bring only essentials for easier travel" />
-              <TipCard emoji="📱" title="Stay Connected" description="Download offline maps before your trip" />
-              <TipCard emoji="💰" title="Budget Smart" description="Set daily spending limits to track expenses" />
+              <TipCard
+                emoji="💡"
+                title="Pack Light"
+                description="Bring only essentials for easier travel"
+              />
+              <TipCard
+                emoji="📱"
+                title="Stay Connected"
+                description="Download offline maps before your trip"
+              />
+              <TipCard
+                emoji="💰"
+                title="Budget Smart"
+                description="Set daily spending limits to track expenses"
+              />
             </div>
           </>
         )}
@@ -683,7 +805,10 @@ const handleSearch = async (e) => {
             memoryName={SelectedMemoryName}
             onFilesReady={(files) => setUploadedFiles(files)}
             setActiveTab={setActiveTab}
-            onUploadComplete={(data) => { setServerData(data); setActiveTab("canvas"); }}
+            onUploadComplete={(data) => {
+              setServerData(data);
+              setActiveTab("canvas");
+            }}
           />
         )}
 
@@ -705,7 +830,9 @@ const handleSearch = async (e) => {
             sosContacts={sosContacts}
             onAddSosContact={addSosContact}
             onRemoveSosContact={removeSosContact}
-            onSendMessage={(message) => setEmergencyMessages(prev => [...prev, message])}
+            onSendMessage={(message) =>
+              setEmergencyMessages((prev) => [...prev, message])
+            }
           />
         )}
 
@@ -753,6 +880,15 @@ const handleSearch = async (e) => {
           />
         )}
 
+        {activeTab === "explore" && (
+          <ExplorePage
+            setActiveTab={setActiveTab}
+            onOpenMemory={(memory) => {
+              window.open(`/share/${memory.memory_id}`, "_blank");
+            }}
+          />
+        )}
+
         {activeTab === "bucketlisteditor" && activeBucketList && (
           <BucketListEditor
             bucketList={activeBucketList}
@@ -768,30 +904,76 @@ const handleSearch = async (e) => {
             onBack={() => setActiveTab("home")}
             onAvatarUpdate={(url) => {
               setAvatarUrl(url);
-              setUserProfile(prev => ({ ...prev, avatar_url: url }));
+              setUserProfile((prev) => ({ ...prev, avatar_url: url }));
             }}
             onProfileUpdate={(updated) => {
               setUserName(updated.username);
-              setUserProfile(prev => ({
+              setUserProfile((prev) => ({
                 ...prev,
                 first_name: updated.firstName,
                 last_name: updated.lastName,
-                username: updated.username
+                username: updated.username,
               }));
             }}
           />
         )}
-
       </main>
 
-      <nav className="bottom-nav" role="navigation" aria-label="Main navigation">
-        <NavItem icon={<AiFillHome />}        active={activeTab === "home"}       onClick={() => setActiveTab("home")}       label="Home" />
-        <NavItem icon={<FiMapPin />}          active={activeTab === "maps"}       onClick={() => setActiveTab("maps")}       label="Maps" />
-        <NavItem icon={<IoCreate />}          active={activeTab === "create"}     onClick={() => setActiveTab("create")}     label="Create" />
-        <NavItem icon={<MdEmergency />}       active={activeTab === "sos"}        onClick={() => setActiveTab("sos")}        label="SOS" />
-        <NavItem icon={<FiMessageCircle />}   active={activeTab === "chatroom"}   onClick={() => setActiveTab("chatroom")}   label="Chat" />
-        <NavItem icon={<FaTrophy />}          active={activeTab === "Challenges"} onClick={() => setActiveTab("Challenges")} label="Challenges" />
-        <NavItem icon={<FiUser />}            active={activeTab === "friends"}    onClick={() => setActiveTab("friends")}    label="Friends" />
+      <nav
+        className="bottom-nav"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <NavItem
+          icon={<AiFillHome />}
+          active={activeTab === "home"}
+          onClick={() => setActiveTab("home")}
+          label="Home"
+        />
+        <NavItem
+          icon={<FiMapPin />}
+          active={activeTab === "maps"}
+          onClick={() => setActiveTab("maps")}
+          label="Maps"
+        />
+
+        <NavItem
+          icon={<FiCompass />}
+          active={activeTab === "explore"}
+          onClick={() => setActiveTab("explore")}
+          label="Explore"
+        />
+
+        <NavItem
+          icon={<IoCreate />}
+          active={activeTab === "create"}
+          onClick={() => setActiveTab("create")}
+          label="Create"
+        />
+        <NavItem
+          icon={<MdEmergency />}
+          active={activeTab === "sos"}
+          onClick={() => setActiveTab("sos")}
+          label="SOS"
+        />
+        <NavItem
+          icon={<FiMessageCircle />}
+          active={activeTab === "chatroom"}
+          onClick={() => setActiveTab("chatroom")}
+          label="Chat"
+        />
+        <NavItem
+          icon={<FaTrophy />}
+          active={activeTab === "Challenges"}
+          onClick={() => setActiveTab("Challenges")}
+          label="Challenges"
+        />
+        <NavItem
+          icon={<FiUser />}
+          active={activeTab === "friends"}
+          onClick={() => setActiveTab("friends")}
+          label="Friends"
+        />
       </nav>
 
       <BucketListModal
@@ -810,7 +992,10 @@ const handleSearch = async (e) => {
 function SectionHeader({ title, showMore, onTitleClick, onSeeMore }) {
   return (
     <div className="section-header">
-      <h2 onClick={onTitleClick} style={onTitleClick ? { cursor: "pointer" } : {}}>
+      <h2
+        onClick={onTitleClick}
+        style={onTitleClick ? { cursor: "pointer" } : {}}
+      >
         {title}
       </h2>
       {showMore && (

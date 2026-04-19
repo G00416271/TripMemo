@@ -16,10 +16,11 @@ export default async function login(e, u, p) {
   }
 
   //calling for stored username and password
-  const [rows] = await db.execute(
-    `SELECT user_id, email, username, password_hash FROM users WHERE email = ?`,
-    [logincredentials],
-  );
+const [rows] = await db.execute(
+  `SELECT user_id, email, username, password_hash 
+   FROM users WHERE email = ? OR username = ?`,
+  [logincredentials, logincredentials],
+);
 
   if (rows.length < 1) {
     return;

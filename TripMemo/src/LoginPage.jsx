@@ -47,13 +47,14 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
 
     try {
       const data = await doLogin(email, userName, password);
+      console.log("login response:", data); // ← does this show user_id?
       login({
         user_id: data.user_id,
         username: data.username,
         email: data.email,
       });
 
-      onLogin(data.username);
+      onLogin(data.username, data.user_id);
     } catch (err) {
       alert(err.message);
     }
@@ -210,25 +211,22 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
       email,
       password,
     }) => {
-      const fd = new FormData();
-      fd.append("username", username);
-      fd.append("firstName", firstName);
-      fd.append("lastName", lastName);
-      fd.append("email", email);
-      fd.append("password", password);
-
       const res = await fetch("http://localhost:5000/register", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          firstName,
+          lastName,
+          email,
+          password,
+        }),
         credentials: "include",
       });
 
-      // handle non-JSON error pages:
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
-
       if (!res.ok) throw new Error(data?.error || "account was not created");
-
       return data;
     };
 
@@ -240,7 +238,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
         email,
         password,
       });
-      onSignup(data.username);
+      onSignup(data.username, data.user_id);
     } catch (err) {
       alert(err.message);
     }
