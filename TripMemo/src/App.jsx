@@ -53,14 +53,6 @@ import GroupChat from "./GroupChat";
 import CanvasThumbnail from "./CanvasThumbnail";
 import ExplorePage from "./ExplorePage";
 
-
-const recentTrips = [
-  { id: 1, destination: "London", days: 5, rating: 4.8, image: "gradient1" },
-  { id: 2, destination: "Tokyo", days: 7, rating: 5.0, image: "gradient2" },
-  { id: 3, destination: "Bali", days: 10, rating: 4.9, image: "gradient3" },
-  { id: 4, destination: "New York", days: 4, rating: 4.7, image: "gradient4" },
-];
-
 const travelStats = [
   { label: "Countries Visited", value: "12", icon: "🌍" },
   { label: "Total Trips", value: "28", icon: "✈️" },
@@ -106,6 +98,9 @@ function App() {
   // Real scrapbooks (memories) for the home screen
   const [scrapbooks, setScrapbooks] = useState([]);
 
+  // Public scrapbooks for "Recent Adventures" section
+  const [publicScrapbooks, setPublicScrapbooks] = useState([]);
+
   useEffect(() => {
     fetch("http://localhost:5000/me", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
@@ -150,6 +145,12 @@ function App() {
           .then((data) => setScrapbooks(data))
           .catch((err) => console.error("Failed to fetch scrapbooks:", err));
       });
+
+    // Fetch public scrapbooks for "Recent Adventures" (no auth needed)
+    fetch("http://localhost:5000/memories/explore")
+      .then((res) => res.json())
+      .then((data) => setPublicScrapbooks(data.slice(0, 6)))
+      .catch((err) => console.error("Failed to fetch public scrapbooks:", err));
   }, []);
 
   const shareMatch = window.location.pathname.match(/^\/share\/(\d+)$/);
@@ -219,6 +220,7 @@ function App() {
     setShowSignup(false);
     setGroups([]);
     setScrapbooks([]);
+    setPublicScrapbooks([]);
   };
 
   const fetchFriends = async (id) => {
@@ -439,6 +441,11 @@ function App() {
     }
   };
 
+  // Open a public scrapbook in a new tab (view-only)
+  const handlePublicScrapbookClick = (memory) => {
+    window.open(`/share/${memory.memory_id}`, "_blank");
+  };
+
   return (
     <div className="app-root">
       {activeTab === "home" && (
@@ -616,27 +623,107 @@ function App() {
 
             <SectionHeader title="Create Your Next Adventure..." />
             <div className="book-row">
-              <BookItem icon={<IoIosAirplane />} label="Trip" />
-              <BookItem icon={<MdFlight />} label="Flight" />
-              <BookItem icon={<MdHotel />} label="Hotel" />
-              <BookItem icon={<MdTrain />} label="Train" />
-              <BookItem icon={<MdDirectionsBus />} label="Bus" />
+              <a href="https://www.loveholidays.ie/" target="_blank" rel="noopener noreferrer">
+                <BookItem icon={<IoIosAirplane />} label="Trip" />
+              </a>
+
+              <a href="https://www.ryanair.com/ie/en" target="_blank" rel="noopener noreferrer">
+                <BookItem icon={<MdFlight />} label="Flight" />
+              </a>
+
+              <a href="https://www.booking.com/" target="_blank" rel="noopener noreferrer">
+                <BookItem icon={<MdHotel />} label="Hotel" />
+              </a>
+
+              <a href="https://www.irishrail.ie/en-ie" target="_blank" rel="noopener noreferrer">
+                <BookItem icon={<MdTrain />} label="Train" />
+              </a>
+
+              <a href="https://www.buseireann.ie/" target="_blank" rel="noopener noreferrer">
+                <BookItem icon={<MdDirectionsBus />} label="Bus" />
+              </a>
             </div>
 
-            <SectionHeader title="Recent Adventures" showMore />
+            {/* ── Recent Adventures: live public scrapbooks ── */}
+            <SectionHeader
+              title="Recent Adventures"
+              showMore
+              onSeeMore={() => setActiveTab("explore")}
+            />
             <div className="horizontal-scroll">
-              {recentTrips.map((trip) => (
-                <article key={trip.id} className="trip-card">
-                  <div className={`trip-image trip-image--${trip.image}`} />
-                  <div className="trip-info">
-                    <h3>{trip.destination}</h3>
-                    <div className="trip-meta">
-                      <span className="trip-days">{trip.days} days</span>
-                      <span className="trip-rating">⭐ {trip.rating}</span>
+              {publicScrapbooks.length === 0 ? (
+                <p
+                  style={{
+                    color: "#aaa",
+                    fontSize: "13px",
+                    alignSelf: "center",
+                    paddingRight: 16,
+                  }}
+                >
+                  No public adventures yet — be the first!
+                </p>
+              ) : (
+                publicScrapbooks.map((memory) => (
+                  <article
+                    key={memory.memory_id}
+                    className="trip-card"
+                    onClick={() => handlePublicScrapbookClick(memory)}
+                    style={{ cursor: "pointer", minWidth: 200, maxWidth: 240 }}
+                  >
+                    {/* Live canvas thumbnail */}
+                    <div
+                      className="trip-image"
+                      style={{ padding: 0, overflow: "hidden", height: 120 }}
+                    >
+                      <CanvasThumbnail
+                        memoryId={memory.memory_id}
+                        memoryTitle={memory.title}
+                        width={240}
+                        height={120}
+                        showShareBtn={false}
+                        showExportBtn={false}
+                      />
                     </div>
-                  </div>
-                </article>
-              ))}
+                    <div className="trip-info">
+                      <h3
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {memory.title}
+                      </h3>
+                      <div className="trip-meta">
+                        <img
+                          src={
+                            memory.avatar_url ||
+                            `https://api.dicebear.com/7.x/adventurer/svg?seed=${memory.user_id}`
+                          }
+                          alt={memory.username}
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          className="trip-days"
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {memory.first_name || memory.username}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
 
             {/* ── Scrapbooks: real memories ── */}
@@ -956,12 +1043,7 @@ function App() {
           onClick={() => setActiveTab("sos")}
           label="SOS"
         />
-        <NavItem
-          icon={<FiMessageCircle />}
-          active={activeTab === "chatroom"}
-          onClick={() => setActiveTab("chatroom")}
-          label="Chat"
-        />
+
         <NavItem
           icon={<FaTrophy />}
           active={activeTab === "Challenges"}
@@ -969,7 +1051,7 @@ function App() {
           label="Challenges"
         />
         <NavItem
-          icon={<FiUser />}
+          icon={<FiMessageCircle />}
           active={activeTab === "friends"}
           onClick={() => setActiveTab("friends")}
           label="Friends"
