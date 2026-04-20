@@ -1,8 +1,0 @@
-node_modules
-.git
-.env
-uploads/*
-__pycache__
-image_classification/__pycache__
-*.log
-.DS_Store
