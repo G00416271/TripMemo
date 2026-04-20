@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiSend, FiArrowLeft } from "react-icons/fi";
+import { FiSend, FiArrowLeft, FiMoreVertical } from "react-icons/fi"; //new
 import "./Friends.css";
 
 export default function FriendChat({ friend, userId, onBack, onViewEmergencyLocation }) {
@@ -7,6 +7,10 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+
+  //new
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showUnfriendModal, setShowUnfriendModal] = useState(false);
 
   // Only auto-scroll if already near the bottom
   const scrollToBottomIfNear = (force = false) => {
@@ -17,6 +21,20 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
+
+  //new
+  const handleUnfriend = async () => {
+  try {
+    await fetch(`http://localhost:5000/users/${userId}/friends/${friend.user_id}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    setShowUnfriendModal(false);
+    onBack();
+  } catch (err) {
+    console.error("Failed to unfriend:", err);
+  }
+};
 
   useEffect(() => {
     fetchMessages();
@@ -74,7 +92,41 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
   return (
     <div className="friend-chat">
       {/* Header */}
+      {/* new */}
       <div className="friend-chat-header">
+  <button className="back-btn" onClick={onBack}>
+    <FiArrowLeft size={18} />
+  </button>
+  <img
+    src={friendAvatar}
+    alt={friend.username}
+    className="friend-chat-avatar"
+  />
+  <div className="friend-chat-info">
+    <p className="friend-chat-name">{friend.first_name} {friend.last_name}</p>
+    <p className="friend-chat-username">@{friend.username}</p>
+  </div>
+  <div style={{ marginLeft: "auto", position: "relative" }}>
+    <button
+      onClick={() => setShowDropdown(!showDropdown)}
+      style={{ background: "none", border: "none", cursor: "pointer", padding: "8px" }}
+    >
+      <FiMoreVertical size={20} color="#888" />
+    </button>
+    {showDropdown && (
+      <div style={{ position: "absolute", right: "0px", top: "100%", background: "white", border: "1px solid #eee", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 100, minWidth: "120px" }}>
+        <button
+          onClick={() => { setShowUnfriendModal(true); setShowDropdown(false); }}
+          style={{ display: "block", width: "100%", padding: "10px 16px", background: "none", border: "none", textAlign: "left", cursor: "pointer", color: "#ff4444", fontSize: "14px" }}
+        >
+          Unfriend
+        </button>
+      </div>
+    )}
+  </div>
+</div>
+
+      {/* <div className="friend-chat-header">
         <button className="back-btn" onClick={onBack}>
           <FiArrowLeft size={18} />
         </button>
@@ -87,7 +139,7 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
           <p className="friend-chat-name">{friend.first_name} {friend.last_name}</p>
           <p className="friend-chat-username">@{friend.username}</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Messages */}
       <div className="friend-chat-messages" ref={messagesContainerRef}>
@@ -153,6 +205,30 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
           <FiSend size={16} />
         </button>
       </form>
+        {/* new */}
+        {showUnfriendModal && (
+  <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+    <div style={{ background: "white", borderRadius: "16px", padding: "24px", width: "90%", maxWidth: "360px" }}>
+      <h3 style={{ margin: "0 0 12px" }}>Unfriend</h3>
+      <p>Are you sure you want to unfriend <strong>{friend.first_name} {friend.last_name}</strong>?</p>
+      <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "flex-end" }}>
+        <button
+          onClick={() => setShowUnfriendModal(false)}
+          style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #ddd", background: "white", cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleUnfriend}
+          style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "#ff4444", color: "white", cursor: "pointer", fontWeight: "600" }}
+        >
+          Unfriend
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

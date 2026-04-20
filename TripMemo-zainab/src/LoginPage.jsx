@@ -7,39 +7,40 @@ import { FaApple, FaFacebook } from "react-icons/fa";
 import './Loginpage.module.css';
 import { useAuth } from "./Auth.jsx";
 import './Auth.css';
-
+import { useAuth0 } from "@auth0/auth0-react";
+ 
 // Import images
 import loginImage from "./assets/login_img.png";
 import signupImage from "./assets/signup_img.png";
-
+ 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const { login } = useAuth();
-
+ 
   const [email, setEmail] = useState("");
   const [userName, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-
+ 
   // const doLogin = async (email, userName, password) => {
   //   const fd = new FormData();
   //   fd.append("email", email);
   //   fd.append("username", userName);
   //   fd.append("password", password);
-
+ 
   //   const res = await fetch("http://localhost:5000/login", {
   //     method: "POST",
   //     body: fd,
   //     credentials: "include",
   //   });
-
+ 
   //   const data = await res.json();
   //   if (!res.ok) throw new Error(data.error || "Login failed");
   //   return data;
   // };
-
-
-
+ 
+const { loginWithRedirect } = useAuth0();
+ 
   const doLogin = async (email, userName, password) => {
   const res = await fetch("http://localhost:5000/login", {
     method: "POST",
@@ -47,23 +48,23 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     body: JSON.stringify({ email, password }),  // ← change this
     credentials: "include",
   });
-
+ 
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Login failed");
   return data;
 };
-
-
-
-
+ 
+ 
+ 
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+ 
     if ((!email && !userName) || !password) {
       alert("Enter username or email, and password");
       return;
     }
-
+ 
     try {
       const data = await doLogin(email, userName, password);
       login({
@@ -71,14 +72,14 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
         username: data.username,
         email: data.email,
       });
-
+ 
       // onLogin(data.username, data.userId);
       onLogin(data.username, data.user_id);
     } catch (err) {
       alert(err.message);
     }
   };
-
+ 
   return (
     <div className="app-root">
       <div className="phone-shell">
@@ -93,11 +94,11 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
               />
             </div>
           </div>
-
+ 
           {/* Form Section */}
           <div className="auth-form-container">
             <h1 className="auth-form-title">Welcome back!</h1>
-
+ 
             <form
               className="auth-form-content login-form"
               onSubmit={handleSubmit}
@@ -112,7 +113,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
                   className="auth-text-input"
                 />
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">Password</label>
                 <div className="password-input-container">
@@ -132,7 +133,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
                   </button>
                 </div>
               </div>
-
+ 
               <div className="auth-extras">
                 <button type="button" className="forgot-link">
                   Forgot password?
@@ -146,31 +147,43 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
                   <span>Remember me</span>
                 </label>
               </div>
-
+ 
               {/* Spacer to match signup form height */}
               <div className="login-spacer"></div>
-
+ 
               <button type="submit" className="auth-submit-btn">
                 Log In
               </button>
             </form>
-
+ 
             <div className="auth-divider-line">
               <span>or</span>
             </div>
-
+ 
             <div className="social-auth-buttons">
-              <button className="social-auth-btn">
+              {/* <button className="social-auth-btn">
                 <FcGoogle size={24} />
-              </button>
-              <button className="social-auth-btn">
+              </button> */}
+              <div className="social-auth-buttons">
+  <button
+    className="social-auth-btn"
+    onClick={() => loginWithRedirect({
+      authorizationParams: {
+        connection: "google-oauth2"
+      }
+    })}
+  >
+    <FcGoogle size={24} />
+  </button>
+</div>
+              {/* <button className="social-auth-btn">
                 <FaFacebook size={24} color="#1877F2" />
               </button>
               <button className="social-auth-btn">
                 <FaApple size={24} />
-              </button>
+              </button> */}
             </div>
-
+ 
             <p className="auth-switch-text">
               Don't have an account yet?{" "}
               <button onClick={onSwitchToSignup} className="auth-switch-btn">
@@ -183,24 +196,24 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
     </div>
   );
 }
-
+ 
 // SignupPage.jsx
 export function SignupPage({ onSignup, onSwitchToLogin }) {
   const [username, setUsername] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-
+ 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+ 
     //validations
-
+ 
     if (
       !username ||
       !firstName ||
@@ -212,17 +225,17 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
       alert("Please fill in all fields");
       return;
     }
-
+ 
     if (password !== confirmPassword) {
       alert("Passwords don't match");
       return;
     }
-
+ 
     if (password.length < 6) {
       alert("Password must be at least 6 characters");
       return;
     }
-
+ 
     // const register = async ({
     //   username,
     //   firstName,
@@ -236,25 +249,25 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     //   fd.append("lastName", lastName);
     //   fd.append("email", email);
     //   fd.append("password", password);
-
+ 
     //   const res = await fetch("http://localhost:5000/register", {
     //     method: "POST",
     //     body: fd,
     //     credentials: "include",
     //   });
-
+ 
     //   // handle non-JSON error pages:
     //   const text = await res.text();
     //   const data = text ? JSON.parse(text) : null;
-
+ 
     //   if (!res.ok) throw new Error(data?.error || "account was not created");
-
+ 
     //   return data;
     // };
-
-
-
-
+ 
+ 
+ 
+ 
     const register = async ({ username, firstName, lastName, email, password }) => {
   const res = await fetch("http://localhost:5000/register", {
     method: "POST",
@@ -262,17 +275,17 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     body: JSON.stringify({ username, firstName, lastName, email, password }),  // ← change this
     credentials: "include",
   });
-
+ 
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-
+ 
   if (!res.ok) throw new Error(data?.error || "account was not created");
-
+ 
   return data;
 };
-
-
-
+ 
+ 
+ 
     try {
       const data = await register({
         username,
@@ -286,7 +299,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
       alert(err.message);
     }
   };
-
+ 
   return (
     <div className="app-root">
       <div className="phone-shell">
@@ -301,11 +314,11 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
               />
             </div>
           </div>
-
+ 
           {/* Form Section */}
           <div className="auth-form-container">
             <h1 className="auth-form-title">Create Account</h1>
-
+ 
             <form className="auth-form-content" onSubmit={handleSubmit}>
               <div className="auth-input-wrapper">
                 <label className="auth-label">Username</label>
@@ -317,7 +330,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="auth-text-input"
                 />
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">First name</label>
                 <input
@@ -328,7 +341,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="auth-text-input"
                 />
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">Last name</label>
                 <input
@@ -339,7 +352,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="auth-text-input"
                 />
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">Email address</label>
                 <input
@@ -350,7 +363,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="auth-text-input"
                 />
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">Password</label>
                 <div className="password-input-container">
@@ -370,7 +383,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   </button>
                 </div>
               </div>
-
+ 
               <div className="auth-input-wrapper">
                 <label className="auth-label">Confirm Password</label>
                 <div className="password-input-container">
@@ -390,16 +403,16 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                   </button>
                 </div>
               </div>
-
+ 
               <button type="submit" className="auth-submit-btn">
                 Sign Up
               </button>
             </form>
-
+ 
             <div className="auth-divider-line">
               <span>or</span>
             </div>
-
+ 
             <div className="social-auth-buttons">
               <button className="social-auth-btn">
                 <FcGoogle size={24} />
@@ -411,7 +424,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
                 <FaApple size={24} />
               </button>
             </div>
-
+ 
             <p className="auth-switch-text">
               Already have an account?{" "}
               <button onClick={onSwitchToLogin} className="auth-switch-btn">
@@ -424,3 +437,415 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     </div>
   );
 }
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+// // updated: add Login and signup pages
+// // LoginPage.jsx
+// import React, { useState } from "react";
+// import { FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+// import { FcGoogle } from "react-icons/fc";
+// import { FaApple, FaFacebook } from "react-icons/fa";
+// import styles from "./LoginPage.module.css";
+// import { useAuth } from "./Auth.jsx";
+ 
+// // Import images
+// import loginImage from "./assets/login_img.png";
+// import signupImage from "./assets/signup_img.png";
+ 
+// //new
+// import { useAuth0 } from "@auth0/auth0-react";
+ 
+// export default function LoginPage({ onLogin, onSwitchToSignup }) {
+//   const { login } = useAuth();
+ 
+//   const [email, setEmail] = useState("");
+//   const [userName, setUsername] = useState("");
+//   const [password, setPassword] = useState("");
+//   const [showPassword, setShowPassword] = useState(false);
+//   const [rememberMe, setRememberMe] = useState(false);
+ 
+//   const doLogin = async (email, userName, password) => {
+//     const fd = new FormData();
+//     fd.append("email", email);
+//     fd.append("username", userName);
+//     fd.append("password", password);
+ 
+//     const res = await fetch("http://localhost:5000/login", {
+//       method: "POST",
+//       body: fd,
+//       credentials: "include",
+//     });
+ 
+//     const data = await res.json();
+//     if (!res.ok) throw new Error(data.error || "Login failed");
+//     return data;
+//   };
+ 
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+ 
+//     if ((!email && !userName) || !password) {
+//       alert("Enter username or email, and password");
+//       return;
+//     }
+ 
+//     try {
+//       const data = await doLogin(email, userName, password);
+//       console.log("login response:", data); // ← does this show user_id?
+//       login({
+//         user_id: data.user_id,
+//         username: data.username,
+//         email: data.email,
+//       });
+ 
+//       onLogin(data.username, data.user_id);
+//     } catch (err) {
+//       alert(err.message);
+//     }
+//   };
+ 
+//   return (
+//     <div className="app-root">
+//       <div className="phone-shell">
+//         <div className="phone-inner auth-phone-inner">
+//           {/* Illustration Section */}
+//           <div className="auth-illustration">
+//             <div className="auth-hero-image">
+//               <img
+//                 src={loginImage}
+//                 alt="Welcome"
+//                 className="auth-illustration-img"
+//               />
+//             </div>
+//           </div>
+ 
+//           {/* Form Section */}
+//           <div className="auth-form-container">
+//             <h1 className="auth-form-title">Welcome back!</h1>
+ 
+//             <form
+//               className="auth-form-content login-form"
+//               onSubmit={handleSubmit}
+//             >
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Email address</label>
+//                 <input
+//                   type="email"
+//                   placeholder="yourname@example.com"
+//                   value={email}
+//                   onChange={(e) => setEmail(e.target.value)}
+//                   className="auth-text-input"
+//                 />
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Password</label>
+//                 <div className="password-input-container">
+//                   <input
+//                     type={showPassword ? "text" : "password"}
+//                     placeholder="••••••••••"
+//                     value={password}
+//                     onChange={(e) => setPassword(e.target.value)}
+//                     className="auth-text-input"
+//                   />
+//                   <button
+//                     type="button"
+//                     className="password-eye-toggle"
+//                     onClick={() => setShowPassword(!showPassword)}
+//                   >
+//                     {showPassword ? <FiEyeOff /> : <FiEye />}
+//                   </button>
+//                 </div>
+//               </div>
+ 
+//               <div className="auth-extras">
+//                 <button type="button" className="forgot-link">
+//                   Forgot password?
+//                 </button>
+//                 <label className="remember-checkbox">
+//                   <input
+//                     type="checkbox"
+//                     checked={rememberMe}
+//                     onChange={(e) => setRememberMe(e.target.checked)}
+//                   />
+//                   <span>Remember me</span>
+//                 </label>
+//               </div>
+ 
+//               {/* Spacer to match signup form height */}
+//               <div className="login-spacer"></div>
+ 
+//               <button type="submit" className="auth-submit-btn">
+//                 Log In
+//               </button>
+//             </form>
+ 
+//             <div className="auth-divider-line">
+//               <span>or</span>
+//             </div>
+ 
+           
+//               {/* <button className="social-auth-btn">
+//                 <FcGoogle size={24} />
+//               </button> */}
+//               {/*new*/}
+//  <div className="social-auth-buttons">
+//                   <button
+//     className="social-auth-btn"
+//     onClick={() => loginWithRedirect({
+//       authorizationParams: {
+//         connection: "google-oauth2"
+//       }
+//     })}
+//   >
+//     <FcGoogle size={24} />
+//   </button>
+// </div>
+ 
+//               {/* <button className="social-auth-btn">
+//                 <FaFacebook size={24} color="#1877F2" />
+//               </button>
+//               <button className="social-auth-btn">
+//                 <FaApple size={24} />
+//               </button>
+//             </div> */}
+ 
+//             <p className="auth-switch-text">
+//               Don't have an account yet?{" "}
+//               <button onClick={onSwitchToSignup} className="auth-switch-btn">
+//                 Sign Up
+//               </button>
+//             </p>
+//           </div>
+//         </div>
+//       </div>
+//     // </div>
+//   );
+// }
+ 
+// // SignupPage.jsx
+// export function SignupPage({ onSignup, onSwitchToLogin }) {
+//   const [username, setUsername] = useState("");
+//   const [firstName, setFirstName] = useState("");
+//   const [lastName, setLastName] = useState("");
+ 
+//   const [email, setEmail] = useState("");
+//   const [password, setPassword] = useState("");
+//   const [confirmPassword, setConfirmPassword] = useState("");
+//   const [showPassword, setShowPassword] = useState(false);
+//   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+ 
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+ 
+//     //validations
+ 
+//     if (
+//       !username ||
+//       !firstName ||
+//       !lastName ||
+//       !email ||
+//       !password ||
+//       !confirmPassword
+//     ) {
+//       alert("Please fill in all fields");
+//       return;
+//     }
+ 
+//     if (password !== confirmPassword) {
+//       alert("Passwords don't match");
+//       return;
+//     }
+ 
+//     if (password.length < 6) {
+//       alert("Password must be at least 6 characters");
+//       return;
+//     }
+ 
+//     const register = async ({
+//       username,
+//       firstName,
+//       lastName,
+//       email,
+//       password,
+//     }) => {
+//       const res = await fetch("http://localhost:5000/register", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({
+//           username,
+//           firstName,
+//           lastName,
+//           email,
+//           password,
+//         }),
+//         credentials: "include",
+//       });
+ 
+//       const text = await res.text();
+//       const data = text ? JSON.parse(text) : null;
+//       if (!res.ok) throw new Error(data?.error || "account was not created");
+//       return data;
+//     };
+ 
+//     try {
+//       const data = await register({
+//         username,
+//         firstName,
+//         lastName,
+//         email,
+//         password,
+//       });
+//       onSignup(data.username, data.user_id);
+//     } catch (err) {
+//       alert(err.message);
+//     }
+//   };
+ 
+//   return (
+//     <div className="app-root">
+//       <div className="phone-shell">
+//         <div className="phone-inner auth-phone-inner">
+//           {/* Illustration Section */}
+//           <div className="auth-illustration signup-illustration">
+//             <div className="auth-hero-image">
+//               <img
+//                 src={signupImage}
+//                 alt="Create Account"
+//                 className="auth-illustration-img"
+//               />
+//             </div>
+//           </div>
+ 
+//           {/* Form Section */}
+//           <div className="auth-form-container">
+//             <h1 className="auth-form-title">Create Account</h1>
+ 
+//             <form className="auth-form-content" onSubmit={handleSubmit}>
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Username</label>
+//                 <input
+//                   type="text"
+//                   placeholder="Choose a username"
+//                   value={username}
+//                   onChange={(e) => setUsername(e.target.value)}
+//                   className="auth-text-input"
+//                 />
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">First name</label>
+//                 <input
+//                   type="text"
+//                   placeholder="Enter your first name"
+//                   value={firstName}
+//                   onChange={(e) => setFirstName(e.target.value)}
+//                   className="auth-text-input"
+//                 />
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Last name</label>
+//                 <input
+//                   type="text"
+//                   placeholder="Enter your last name"
+//                   value={lastName}
+//                   onChange={(e) => setLastName(e.target.value)}
+//                   className="auth-text-input"
+//                 />
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Email address</label>
+//                 <input
+//                   type="email"
+//                   placeholder="Enter your email"
+//                   value={email}
+//                   onChange={(e) => setEmail(e.target.value)}
+//                   className="auth-text-input"
+//                 />
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Password</label>
+//                 <div className="password-input-container">
+//                   <input
+//                     type={showPassword ? "text" : "password"}
+//                     placeholder="Create password"
+//                     value={password}
+//                     onChange={(e) => setPassword(e.target.value)}
+//                     className="auth-text-input"
+//                   />
+//                   <button
+//                     type="button"
+//                     className="password-eye-toggle"
+//                     onClick={() => setShowPassword(!showPassword)}
+//                   >
+//                     {showPassword ? <FiEyeOff /> : <FiEye />}
+//                   </button>
+//                 </div>
+//               </div>
+ 
+//               <div className="auth-input-wrapper">
+//                 <label className="auth-label">Confirm Password</label>
+//                 <div className="password-input-container">
+//                   <input
+//                     type={showConfirmPassword ? "text" : "password"}
+//                     placeholder="Re-enter password"
+//                     value={confirmPassword}
+//                     onChange={(e) => setConfirmPassword(e.target.value)}
+//                     className="auth-text-input"
+//                   />
+//                   <button
+//                     type="button"
+//                     className="password-eye-toggle"
+//                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+//                   >
+//                     {showConfirmPassword ? <FiEyeOff /> : <FiEye />}
+//                   </button>
+//                 </div>
+//               </div>
+ 
+//               <button type="submit" className="auth-submit-btn">
+//                 Sign Up
+//               </button>
+//             </form>
+ 
+//             <div className="auth-divider-line">
+//               <span>or</span>
+//             </div>
+ 
+//             <div className="social-auth-buttons">
+//               <button className="social-auth-btn">
+//                 <FcGoogle size={24} />
+//               </button>
+//               <button className="social-auth-btn">
+//                 <FaFacebook size={24} color="#1877F2" />
+//               </button>
+//               <button className="social-auth-btn">
+//                 <FaApple size={24} />
+//               </button>
+//             </div>
+ 
+//             <p className="auth-switch-text">
+//               Already have an account?{" "}
+//               <button onClick={onSwitchToLogin} className="auth-switch-btn">
+//                 Sign In
+//               </button>
+//             </p>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+ 
+ 

@@ -14,6 +14,11 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
   const [searchResults, setSearchResults] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
 
+  // new
+  const [showDropdown, setShowDropdown] = useState(null);
+  const [showUnfriendModal, setShowUnfriendModal] = useState(false);
+  const [selectedUnfriend, setSelectedUnfriend] = useState(null);
+
   useEffect(() => {
     if (!userId) return;
     fetchRequests();
@@ -90,6 +95,22 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
     }
   };
 
+  // new
+  const handleUnfriend = async () => {
+  try {
+    await fetch(`http://localhost:5000/users/${userId}/friends/${selectedUnfriend.user_id}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    setShowUnfriendModal(false);
+    setSelectedUnfriend(null);
+    setShowDropdown(null);
+    onAccept(); // refetches friends list
+  } catch (err) {
+    console.error("Failed to unfriend:", err);
+  }
+};
+
   return (
     <div className="friends-page">
 
@@ -160,32 +181,92 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
             <span>Search for friends</span>
           </button>
         </div>
-      ) : (
+        ) : (
+          // new
         <div className="friends-list">
           {friends.map((friend, i) => (
-            <button
-              key={friend.user_id}
-              className="friend-row"
-              style={{ animationDelay: `${i * 0.05}s` }}
-              onClick={() => onOpenChat(friend)}
-            >
-              <div className="friend-row-avatar-wrap">
-                <img
-                  src={friend.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${friend.user_id}`}
-                  alt={friend.username}
-                  className="friend-row-avatar"
-                />
-                <div className="friend-row-online" />
-              </div>
-              <div className="friend-row-info">
-                <p className="friend-row-name">{friend.first_name} {friend.last_name}</p>
-                <p className="friend-row-username">@{friend.username}</p>
-              </div>
-              <div className="friend-row-chat-icon">
-                <FiMessageCircle size={16} />
-              </div>
-            </button>
+            <div key={friend.user_id} style={{ position: "relative" }}>
+              <button
+                className="friend-row"
+                style={{ animationDelay: `${i * 0.05}s` }}
+                onClick={() => onOpenChat(friend)}
+              >
+                <div className="friend-row-avatar-wrap">
+                  <img
+                    src={friend.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${friend.user_id}`}
+                    alt={friend.username}
+                    className="friend-row-avatar"
+                  />
+                  <div className="friend-row-online" />
+                </div>
+                <div className="friend-row-info">
+                  <p className="friend-row-name">{friend.first_name} {friend.last_name}</p>
+                  <p className="friend-row-username">@{friend.username}</p>
+                </div>
+                <div className="friend-row-chat-icon">
+                  <FiMessageCircle size={16} />
+                </div>
+              </button>
+              {/* <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDropdown(showDropdown === friend.user_id ? null : friend.user_id);
+                }}
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: "4px", fontSize: "18px", color: "#888" }}
+              >
+                ⋮
+              </button> */}
+
+              {/* new */}
+              <button
+  onClick={(e) => {
+    e.stopPropagation();
+    setShowDropdown(showDropdown === friend.user_id ? null : friend.user_id);
+  }}
+  style={{ position: "absolute", right: "0px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: "4px", fontSize: "18px", color: "#888", zIndex: 10 }}
+>
+  ⋮
+</button>
+              {showDropdown === friend.user_id && (
+  <div style={{ position: "absolute", right: "0px", top: "60%", background: "white", border: "1px solid #eee", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 100, minWidth: "120px" }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUnfriend(friend);
+                      setShowUnfriendModal(true);
+                      setShowDropdown(null);
+                    }}
+                    style={{ display: "block", width: "100%", padding: "10px 16px", background: "none", border: "none", textAlign: "left", cursor: "pointer", color: "#ff4444", fontSize: "14px" }}
+                  >
+                    Unfriend
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
+        </div>
+      )}
+
+      {showUnfriendModal && selectedUnfriend && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "white", borderRadius: "16px", padding: "24px", width: "90%", maxWidth: "360px" }}>
+            <h3 style={{ margin: "0 0 12px" }}>Unfriend</h3>
+            <p>Are you sure you want to unfriend <strong>{selectedUnfriend.first_name} {selectedUnfriend.last_name}</strong>?</p>
+            <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setShowUnfriendModal(false); setSelectedUnfriend(null); }}
+                style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #ddd", background: "white", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnfriend}
+                style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "#ff4444", color: "white", cursor: "pointer", fontWeight: "600" }}
+              >
+                Unfriend
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -322,6 +403,30 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
             >
               Create Group · {selectedMembers.length} member{selectedMembers.length !== 1 ? "s" : ""}
             </button>
+
+            {/* //new */}
+            {showUnfriendModal && selectedUnfriend && (
+  <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+    <div style={{ background: "white", borderRadius: "16px", padding: "24px", width: "90%", maxWidth: "360px" }}>
+      <h3 style={{ margin: "0 0 12px" }}>Unfriend</h3>
+      <p>Are you sure you want to unfriend <strong>{selectedUnfriend.first_name} {selectedUnfriend.last_name}</strong>?</p>
+      <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "flex-end" }}>
+        <button
+          onClick={() => { setShowUnfriendModal(false); setSelectedUnfriend(null); }}
+          style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #ddd", background: "white", cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleUnfriend}
+          style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "#ff4444", color: "white", cursor: "pointer", fontWeight: "600" }}
+        >
+          Unfriend
+        </button>
+      </div>
+    </div>
+  </div>
+)}
           </div>
         </div>
       )}
