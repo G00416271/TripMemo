@@ -1,5 +1,5 @@
 *env
 uploads/
 image_classification/i_class_explained.py
-
-
+*.log
+node_modules/
