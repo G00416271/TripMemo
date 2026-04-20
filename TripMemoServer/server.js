@@ -14,7 +14,7 @@ import fs from "fs";
 import crypto from "crypto";
 
 import { uploadToR2, generateSignedUrl } from "./r2.js";
-import processImages from "./DataScraper.js";
+import processImages from "./dataScraper.js";
 import getInterests from "./InterestReq.js";
 import getNodes from "./neoDB.js";
 import getMemories from "./MemoriesReq.js";
