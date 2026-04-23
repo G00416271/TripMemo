@@ -10,7 +10,7 @@
 
 import FormData from "form-data";
 
-const BASE_URL      = "http://https://tripmemo-11.onrender.com";
+const BASE_URL      = "https://tripmemo-11.onrender.com";
 const TEST_EMAIL    = process.env.TEST_EMAIL    ?? "tim@example.com";
 const TEST_PASSWORD = process.env.TEST_PASSWORD ?? "kingofthepirates";
 

@@ -31,7 +31,7 @@ export default function BucketListEditor({ bucketList, onBack }) {
 
   const fetchItems = async () => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -43,7 +43,7 @@ export default function BucketListEditor({ bucketList, onBack }) {
 
   const addTextItem = async () => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -62,7 +62,7 @@ export default function BucketListEditor({ bucketList, onBack }) {
 
 //   const addEmojiItem = async (emoji) => {
 //     try {
-//       const res = await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
+//       const res = await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({
@@ -82,7 +82,7 @@ export default function BucketListEditor({ bucketList, onBack }) {
 
 const addStickerItem = async (sticker) => {
   try {
-    const res = await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
+    const res = await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -107,7 +107,7 @@ const addStickerItem = async (sticker) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const res = await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
+        const res = await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${bucketList.id}/items`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -130,7 +130,7 @@ const addStickerItem = async (sticker) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, content } : item));
 
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/items/${id}`, {
+      await fetch(`https://tripmemo-11.onrender.com/bucket-lists/items/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
@@ -143,7 +143,7 @@ const addStickerItem = async (sticker) => {
 
   const deleteItem = async (id) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/items/${id}`, {
+      await fetch(`https://tripmemo-11.onrender.com/bucket-lists/items/${id}`, {
         method: "DELETE",
         credentials: "include"
       });
@@ -156,7 +156,7 @@ const addStickerItem = async (sticker) => {
     const toggleCheck = async (id, checked) => {
   setItems(prev => prev.map(item => item.id === id ? { ...item, checked: !checked } : item));
   try {
-    await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/items/${id}/check`, {
+    await fetch(`https://tripmemo-11.onrender.com/bucket-lists/items/${id}/check`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checked: !checked }),

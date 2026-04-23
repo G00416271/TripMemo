@@ -28,7 +28,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
   //   fd.append("username", userName);
   //   fd.append("password", password);
  
-  //   const res = await fetch("http://https://tripmemo-11.onrender.com/login", {
+  //   const res = await fetch("https://tripmemo-11.onrender.com/login", {
   //     method: "POST",
   //     body: fd,
   //     credentials: "include",
@@ -42,7 +42,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
 const { loginWithRedirect } = useAuth0();
  
   const doLogin = async (email, userName, password) => {
-  const res = await fetch("http://https://tripmemo-11.onrender.com/login", {
+  const res = await fetch("https://tripmemo-11.onrender.com/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },  // ← add this
     body: JSON.stringify({ email, password }),  // ← change this
@@ -250,7 +250,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     //   fd.append("email", email);
     //   fd.append("password", password);
  
-    //   const res = await fetch("http://https://tripmemo-11.onrender.com/register", {
+    //   const res = await fetch("https://tripmemo-11.onrender.com/register", {
     //     method: "POST",
     //     body: fd,
     //     credentials: "include",
@@ -269,7 +269,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
  
  
     const register = async ({ username, firstName, lastName, email, password }) => {
-  const res = await fetch("http://https://tripmemo-11.onrender.com/register", {
+  const res = await fetch("https://tripmemo-11.onrender.com/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },  // ← add this
     body: JSON.stringify({ username, firstName, lastName, email, password }),  // ← change this
@@ -478,7 +478,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
 //     fd.append("username", userName);
 //     fd.append("password", password);
  
-//     const res = await fetch("http://https://tripmemo-11.onrender.com/login", {
+//     const res = await fetch("https://tripmemo-11.onrender.com/login", {
 //       method: "POST",
 //       body: fd,
 //       credentials: "include",
@@ -677,7 +677,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
 //       email,
 //       password,
 //     }) => {
-//       const res = await fetch("http://https://tripmemo-11.onrender.com/register", {
+//       const res = await fetch("https://tripmemo-11.onrender.com/register", {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({

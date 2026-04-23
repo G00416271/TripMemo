@@ -11,7 +11,7 @@ export default function DeezerWidget() {
     if (!query) return;
     try {
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/api/deezer/search?q=${encodeURIComponent(query)}`,
+        `https://tripmemo-11.onrender.com/api/deezer/search?q=${encodeURIComponent(query)}`,
       );
       const data = await res.json();
       setResults(data);

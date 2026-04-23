@@ -159,7 +159,7 @@ export default function UploadFiles({
     setMsg("Analysing with AI…");
 
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/process-images", { method: "POST", body: fd });
+      const res = await fetch("https://tripmemo-11.onrender.com/process-images", { method: "POST", body: fd });
       if (!res.ok) { setPhase("error"); setMsg("Upload failed."); return; }
       const data = await res.json();
       const aggregated = buildServerData(data);

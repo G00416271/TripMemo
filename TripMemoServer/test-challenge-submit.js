@@ -13,7 +13,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const BASE_URL = "http://https://tripmemo-11.onrender.com";
+const BASE_URL = "https://tripmemo-11.onrender.com";
 
 // ─── Fake GPS coordinates (one per landmark) ──────────────────────────────────
 const LOCATIONS = {

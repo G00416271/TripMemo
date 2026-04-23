@@ -26,7 +26,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/users/${userId}/friend-requests`, { credentials: "include" });
+      const res = await fetch(`https://tripmemo-11.onrender.com/users/${userId}/friend-requests`, { credentials: "include" });
       const data = await res.json();
       setRequests(data);
     } catch (err) {
@@ -42,7 +42,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
       return;
     }
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/users/search?query=${query}`, { credentials: "include" });
+      const res = await fetch(`https://tripmemo-11.onrender.com/users/search?query=${query}`, { credentials: "include" });
       const data = await res.json();
       // Handle both array response and wrapped { results: [...] } shape
       setSearchResults(Array.isArray(data) ? data : (data.results ?? data.users ?? []));
@@ -54,7 +54,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
   const handleAddFriend = async (targetUserId) => {
     if (!userId) return;
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
+      await fetch(`https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ senderId: userId }),
@@ -68,7 +68,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
 
   const handleAccept = async (senderId) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/users/friend-request/${senderId}/accept`, {
+      await fetch(`https://tripmemo-11.onrender.com/users/friend-request/${senderId}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -83,7 +83,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
 
   const handleDecline = async (senderId) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/users/friend-request/${senderId}/decline`, {
+      await fetch(`https://tripmemo-11.onrender.com/users/friend-request/${senderId}/decline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -98,7 +98,7 @@ export default function FriendsPage({ userId, friends, onOpenChat, onAccept, onO
   // new
   const handleUnfriend = async () => {
   try {
-    await fetch(`http://https://tripmemo-11.onrender.com/users/${userId}/friends/${selectedUnfriend.user_id}`, {
+    await fetch(`https://tripmemo-11.onrender.com/users/${userId}/friends/${selectedUnfriend.user_id}`, {
       method: "DELETE",
       credentials: "include"
     });

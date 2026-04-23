@@ -19,7 +19,7 @@ export default function ImageDropWidget() {
         {/* IMAGE */}
         {url ? (
           <img
-            src={`http://https://tripmemo-11.onrender.com/api/image-proxy?url=${encodeURIComponent(url)}`}
+            src={`https://tripmemo-11.onrender.com/api/image-proxy?url=${encodeURIComponent(url)}`}
             className="w-full h-full object-cover"
           />
         ) : (

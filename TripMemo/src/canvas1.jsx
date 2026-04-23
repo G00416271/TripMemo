@@ -936,7 +936,7 @@ export default function CanvasPage({
       if (!memoryId) return;
       const reqId = ++loadReqRef.current;
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`,
+        `https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`,
       );
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();
@@ -1013,7 +1013,7 @@ export default function CanvasPage({
             new File([it._file], it.clientImageId, { type: it._file.type }),
           );
       });
-      const res = await fetch("http://https://tripmemo-11.onrender.com/api/canvas/save", {
+      const res = await fetch("https://tripmemo-11.onrender.com/api/canvas/save", {
         method: "POST",
         body: form,
       });

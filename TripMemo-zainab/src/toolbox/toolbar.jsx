@@ -1,7 +1,7 @@
 import "./toolbox.css";
 
 function tbi(i) {
-  return `http://https://tripmemo-11.onrender.com/icons/${i}.svg`;
+  return `https://tripmemo-11.onrender.com/icons/${i}.svg`;
 }
 
 function Tools({ tool, setTool }) {

@@ -47,7 +47,7 @@ export default function UploadFiles({ onUploadComplete }) {
     setStatus("Uploading...");
 
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/process-images", {
+      const res = await fetch("https://tripmemo-11.onrender.com/process-images", {
         method: "POST",
         body: formData,
       });

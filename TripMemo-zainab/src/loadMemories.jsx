@@ -20,7 +20,7 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     fd.append("action", "create");
     fd.append("user_id", String(user_id));
     fd.append("title", mn);
-    const res = await fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
+    const res = await fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
     if (!res.ok) throw new Error("Create failed");
     return res.json();
   };
@@ -30,13 +30,13 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     fd.append("action", "delete");
     fd.append("memory_id", String(memory_id));
     fd.append("user_id", String(user.user_id));
-    const res = await fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
+    const res = await fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
     if (!res.ok) throw new Error("Memory delete failed");
     return res.json();
   };
 
   const deleteCanvas = async (memoryId) => {
-    const res = await fetch(`http://https://tripmemo-11.onrender.com/api/canvas/delete?memoryId=${memoryId}`, { method: "DELETE" });
+    const res = await fetch(`https://tripmemo-11.onrender.com/api/canvas/delete?memoryId=${memoryId}`, { method: "DELETE" });
     if (res.status === 404) return;
     if (!res.ok) throw new Error(`Canvas delete failed: ${res.status}`);
   };
@@ -46,7 +46,7 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     const fd = new FormData();
     fd.append("action", "fetch");
     fd.append("user_id", user.user_id);
-    fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
+    fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
       .then((res) => res.json())
       .then((data) => { setMemories(data); setLoading(false); })
       .catch((err) => { console.error("Error:", err); setLoading(false); });
@@ -103,7 +103,7 @@ export default function Memories({ setActiveTab, setSelectedMemoryId, setSelecte
     setSelectedMemoryId(memoryId);
     setSelectedMemoryName(memoryTitle);
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`);
+      const res = await fetch(`https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`);
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();
       setActiveTab(data.items?.length > 0 ? "canvas" : "upload");

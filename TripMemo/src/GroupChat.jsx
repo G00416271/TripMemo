@@ -32,7 +32,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -44,7 +44,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
   const fetchMembers = async () => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -63,7 +63,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
     e.preventDefault();
     if (!inputMessage.trim()) return;
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ senderId: userId, senderName: userName, text: inputMessage }),
@@ -79,7 +79,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
   const handleLeave = async () => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members/${userId}`, {
+      await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members/${userId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userName }),
@@ -95,7 +95,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
   const handleRename = async () => {
     if (!newName.trim()) return;
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/name`, {
+      await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/name`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName }),
@@ -110,7 +110,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
   const handleAddMember = async (friendId) => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: friendId }),
@@ -130,7 +130,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
   const handleAddFriend = async (targetUserId) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
+      await fetch(`https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ senderId: userId }),
@@ -430,7 +430,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
 //   const fetchMessages = async () => {
 //     try {
-//       const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
+//       const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
 //         credentials: "include"
 //       });
 //       const data = await res.json();
@@ -442,7 +442,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
 //   const fetchMembers = async () => {
 //     try {
-//       const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
+//       const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
 //         credentials: "include"
 //       });
 //       const data = await res.json();
@@ -462,7 +462,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 //     if (!inputMessage.trim()) return;
 
 //     try {
-//       const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
+//       const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/messages`, {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({
@@ -483,7 +483,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 //   const handleLeave = async () => {
 //     if (!confirm(`Are you sure you want to leave "${groupName}"?`)) return;
 //     try {
-//       await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members/${userId}`, {
+//       await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members/${userId}`, {
 //         method: "DELETE",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({ userName }),
@@ -498,7 +498,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 //   const handleRename = async () => {
 //     if (!newName.trim()) return;
 //     try {
-//       await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/name`, {
+//       await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/name`, {
 //         method: "PATCH",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({ name: newName }),
@@ -513,7 +513,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
 //   const handleAddMember = async (friendId) => {
 //     try {
-//       const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
+//       const res = await fetch(`https://tripmemo-11.onrender.com/groups/${group.id}/members`, {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({ userId: friendId }),
@@ -533,7 +533,7 @@ export default function GroupChat({ group, userId, userName, friends, onBack, on
 
 //   const handleAddFriend = async (targetUserId) => {
 //     try {
-//       await fetch(`http://https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
+//       await fetch(`https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`, {
 //         method: "POST",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify({ senderId: userId }),

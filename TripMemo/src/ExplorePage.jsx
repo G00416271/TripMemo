@@ -12,7 +12,7 @@ export default function ExplorePage({ setActiveTab, onOpenMemory }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    fetch("http://https://tripmemo-11.onrender.com/memories/explore")
+    fetch("https://tripmemo-11.onrender.com/memories/explore")
       .then((r) => r.json())
       .then((data) => {
         setMemories(data);

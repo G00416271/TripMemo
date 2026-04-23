@@ -31,7 +31,7 @@ export default function Memories({
     fd.append("user_id", String(user_id));
     fd.append("title", mn);
     fd.append("privacy_level", privacy_level);
-    const res = await fetch("http://https://tripmemo-11.onrender.com/memories", {
+    const res = await fetch("https://tripmemo-11.onrender.com/memories", {
       method: "POST",
       body: fd,
     });
@@ -44,7 +44,7 @@ export default function Memories({
     fd.append("action", "delete");
     fd.append("memory_id", String(memory_id));
     fd.append("user_id", String(userId));
-    const res = await fetch("http://https://tripmemo-11.onrender.com/memories", {
+    const res = await fetch("https://tripmemo-11.onrender.com/memories", {
       method: "POST",
       body: fd,
     });
@@ -54,7 +54,7 @@ export default function Memories({
 
   const deleteCanvas = async (memoryId) => {
     const res = await fetch(
-      `http://https://tripmemo-11.onrender.com/api/canvas/delete?memoryId=${memoryId}`,
+      `https://tripmemo-11.onrender.com/api/canvas/delete?memoryId=${memoryId}`,
       { method: "DELETE" },
     );
     if (res.status === 404) return;
@@ -69,7 +69,7 @@ export default function Memories({
     const fd = new FormData();
     fd.append("action", "fetch");
     fd.append("user_id", userId);
-    fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
+    fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
       .then((res) => res.json())
       .then((data) => {
         setMemories(data);
@@ -132,7 +132,7 @@ export default function Memories({
     fd.append("privacy_level", newPrivacy);
 
     try {
-      await fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
+      await fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd });
       setMemories((prev) =>
         prev.map((m) =>
           m.memory_id === memoryId ? { ...m, privacy_level: newPrivacy } : m,
@@ -163,7 +163,7 @@ export default function Memories({
     setSelectedMemoryName(memoryTitle);
     try {
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`,
+        `https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memoryId}`,
       );
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();

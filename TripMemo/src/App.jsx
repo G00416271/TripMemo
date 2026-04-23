@@ -161,7 +161,7 @@ const bucketFileRef = React.useRef(null); // new
   // }, []);
 
   useEffect(() => {
-    fetch("http://https://tripmemo-11.onrender.com/me", { credentials: "include" })
+    fetch("https://tripmemo-11.onrender.com/me", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((user) => {
         if (!user) return;
@@ -169,27 +169,27 @@ const bucketFileRef = React.useRef(null); // new
         setUserId(user.user_id);
         setUserProfile(user);
         setIsAuthenticated(true);
-        fetch(`http://https://tripmemo-11.onrender.com/users/${user.user_id}/friends`, {
+        fetch(`https://tripmemo-11.onrender.com/users/${user.user_id}/friends`, {
           credentials: "include",
         })
           .then((res) => res.json())
           .then((data) => setFriends(data));
-        fetch(`http://https://tripmemo-11.onrender.com/sos-contacts/${user.user_id}`, {
+        fetch(`https://tripmemo-11.onrender.com/sos-contacts/${user.user_id}`, {
           credentials: "include",
         })
           .then((res) => res.json())
           .then((data) => setSosContacts(data));
-        fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${user.user_id}`, {
+        fetch(`https://tripmemo-11.onrender.com/bucket-lists/${user.user_id}`, {
           credentials: "include",
         })
           .then((res) => res.json())
           .then((data) => setBucketLists(data));
-        fetch(`http://https://tripmemo-11.onrender.com/saved-places/${user.user_id}`, {
+        fetch(`https://tripmemo-11.onrender.com/saved-places/${user.user_id}`, {
           credentials: "include",
         })
           .then((res) => res.json())
           .then((data) => setSavedPlaces(data));
-        fetch(`http://https://tripmemo-11.onrender.com/groups/user/${user.user_id}`, {
+        fetch(`https://tripmemo-11.onrender.com/groups/user/${user.user_id}`, {
           credentials: "include",
         })
           .then((res) => res.json())
@@ -199,7 +199,7 @@ const bucketFileRef = React.useRef(null); // new
         const fd = new FormData();
         fd.append("action", "fetch");
         fd.append("user_id", user.user_id);
-        fetch("http://https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
+        fetch("https://tripmemo-11.onrender.com/memories", { method: "POST", body: fd })
           .then((res) => res.json())
           .then((data) => setScrapbooks(data))
           .catch((err) => console.error("Failed to fetch scrapbooks:", err));
@@ -267,7 +267,7 @@ useEffect(() => {
   // useEffect(() => {
   //   if (auth0IsAuthenticated && auth0User && !isAuthenticated) {
   //     // Register or login the Google user in your backend
-  //     fetch("http://https://tripmemo-11.onrender.com/auth/google", {
+  //     fetch("https://tripmemo-11.onrender.com/auth/google", {
   //       method: "POST",
   //       headers: { "Content-Type": "application/json" },
   //       body: JSON.stringify({
@@ -344,7 +344,7 @@ useEffect(() => {
   }
 
   const handleLogout = async () => {
-    await fetch("http://https://tripmemo-11.onrender.com/logout", {
+    await fetch("https://tripmemo-11.onrender.com/logout", {
       method: "POST",
       credentials: "include",
     });
@@ -365,7 +365,7 @@ useEffect(() => {
 
   const fetchFriends = async (id) => {
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/users/${id}/friends`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/users/${id}/friends`, {
         credentials: "include",
       });
       const data = await res.json();
@@ -377,7 +377,7 @@ useEffect(() => {
 
   const addSosContact = async (friend) => {
     try {
-      await fetch("http://https://tripmemo-11.onrender.com/sos-contacts", {
+      await fetch("https://tripmemo-11.onrender.com/sos-contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, friendId: friend.user_id }),
@@ -391,7 +391,7 @@ useEffect(() => {
 
   const removeSosContact = async (friendId) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/sos-contacts/${userId}/${friendId}`, {
+      await fetch(`https://tripmemo-11.onrender.com/sos-contacts/${userId}/${friendId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -403,7 +403,7 @@ useEffect(() => {
 
   const addSavedPlace = async (name, latitude, longitude) => {
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/saved-places", {
+      const res = await fetch("https://tripmemo-11.onrender.com/saved-places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, name, latitude, longitude }),
@@ -418,7 +418,7 @@ useEffect(() => {
 
   const removeSavedPlace = async (placeId) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/saved-places/${placeId}`, {
+      await fetch(`https://tripmemo-11.onrender.com/saved-places/${placeId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -430,7 +430,7 @@ useEffect(() => {
 
   const createBucketList = async (title) => {
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/bucket-lists", {
+      const res = await fetch("https://tripmemo-11.onrender.com/bucket-lists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, title }),
@@ -446,7 +446,7 @@ useEffect(() => {
 
   const deleteBucketList = async (id) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${id}`, {
+      await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -458,7 +458,7 @@ useEffect(() => {
 
   const renameBucketList = async (id, title) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${id}`, {
+      await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
@@ -474,7 +474,7 @@ useEffect(() => {
 
   const openBucketList = async (list) => {
     try {
-      await fetch(`http://https://tripmemo-11.onrender.com/bucket-lists/${list.id}/accessed`, {
+      await fetch(`https://tripmemo-11.onrender.com/bucket-lists/${list.id}/accessed`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -497,7 +497,7 @@ useEffect(() => {
 
   const createGroup = async (name, memberIds) => {
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/groups", {
+      const res = await fetch("https://tripmemo-11.onrender.com/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, createdBy: userId, memberIds }),
@@ -517,7 +517,7 @@ useEffect(() => {
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     setActiveTab("friends");
     try {
-      const res = await fetch(`http://https://tripmemo-11.onrender.com/groups/user/${userId}`, {
+      const res = await fetch(`https://tripmemo-11.onrender.com/groups/user/${userId}`, {
         credentials: "include"
       });
       const data = await res.json();
@@ -542,7 +542,7 @@ useEffect(() => {
 
     try {
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/users/search?query=${query}`,
+        `https://tripmemo-11.onrender.com/users/search?query=${query}`,
         { credentials: "include" },
       );
       const data = await res.json();
@@ -560,7 +560,7 @@ useEffect(() => {
     }
     try {
       await fetch(
-        `http://https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`,
+        `https://tripmemo-11.onrender.com/users/friend-request/${targetUserId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -581,7 +581,7 @@ useEffect(() => {
     setSelectedMemoryName(memory.title);
     try {
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memory.memory_id}`,
+        `https://tripmemo-11.onrender.com/api/canvas/load?memoryId=${memory.memory_id}`,
       );
       if (!res.ok) throw new Error("Load failed");
       const data = await res.json();

@@ -25,7 +25,7 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
   //new
   const handleUnfriend = async () => {
   try {
-    await fetch(`http://https://tripmemo-11.onrender.com/users/${userId}/friends/${friend.user_id}`, {
+    await fetch(`https://tripmemo-11.onrender.com/users/${userId}/friends/${friend.user_id}`, {
       method: "DELETE",
       credentials: "include"
     });
@@ -52,7 +52,7 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
   const fetchMessages = async () => {
     try {
       const res = await fetch(
-        `http://https://tripmemo-11.onrender.com/messages/${userId}/${friend.user_id}`,
+        `https://tripmemo-11.onrender.com/messages/${userId}/${friend.user_id}`,
         { credentials: "include" }
       );
       const data = await res.json();
@@ -66,7 +66,7 @@ export default function FriendChat({ friend, userId, onBack, onViewEmergencyLoca
     e.preventDefault();
     if (!inputMessage.trim()) return;
     try {
-      const res = await fetch("http://https://tripmemo-11.onrender.com/messages", {
+      const res = await fetch("https://tripmemo-11.onrender.com/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -115,7 +115,7 @@ export default function CanvasThumbnail({
   useEffect(() => {
     if (_cache[memoryId]) { setData(_cache[memoryId]); setState("ready"); return; }
     setState("loading");
-    fetch(`http://https://tripmemo-11.onrender.com/api/canvas/share/${memoryId}?preview=true`)
+    fetch(`https://tripmemo-11.onrender.com/api/canvas/share/${memoryId}?preview=true`)
       .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then((d) => { _cache[memoryId] = d; setData(d); setState("ready"); })
       .catch(() => setState("error"));
