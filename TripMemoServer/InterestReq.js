@@ -1,5 +1,5 @@
-import mysql from "mysql2/promise";
-import db from "./db.js";
+// import mysql from "mysql2/promise";
+// import db from "./db.js";
 
 //Function is meant to get interst tags from database
 export default async function getInterests(tags = [], fields) {
