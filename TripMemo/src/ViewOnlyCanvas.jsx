@@ -260,7 +260,7 @@ export default function ViewOnlyCanvas({ memoryId }) {
     if (!memoryId) return;
     setLoading(true);
     setError(null);
-    fetch(`http://localhost:5000/api/canvas/share/${memoryId}`)
+    fetch(`http://https://tripmemo-11.onrender.com/api/canvas/share/${memoryId}`)
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then((data) => {
         setItems(Array.isArray(data.items) ? data.items : []);

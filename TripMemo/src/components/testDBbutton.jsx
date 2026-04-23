@@ -3,7 +3,7 @@ import React, { useState } from "react";
 const user = "schannie";
 
 export default function TestDBButton({
-  url = "http://localhost:5000/interestReq", // should hit your backend, NOT Vite
+  url = "http://https://tripmemo-11.onrender.com/interestReq", // should hit your backend, NOT Vite
   method = "POST",
   onSuccess,
 }) {

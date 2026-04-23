@@ -530,7 +530,7 @@ function TaskRow({ task, completed, markCompleted }) {
       console.log("photos:",   `${imgs.length} image(s) attached as multipart`);
       console.groupEnd();
 
-      const response = await fetch("http://localhost:5000/challenge-submit", {
+      const response = await fetch("http://https://tripmemo-11.onrender.com/challenge-submit", {
         method:      "POST",
         credentials: "include",
         body:        form,
@@ -629,7 +629,7 @@ function Challenges({ setActiveTab }) {
   const markCompleted = (id) => setCompleted((prev) => [...new Set([...prev, id])]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/challenges/completed", { credentials: "include" })
+    fetch("http://https://tripmemo-11.onrender.com/challenges/completed", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => setCompleted(data.map((c) => c.task_id)))
       .catch(console.error);

@@ -10,7 +10,7 @@ export default function ConnStatus() {
   useEffect(() => {
     async function checkConnection() {
       try {
-        const res = await fetch("http://localhost:5000/ping", {
+        const res = await fetch("http://https://tripmemo-11.onrender.com/ping", {
           method: "GET",
         });
 
@@ -32,7 +32,7 @@ export default function ConnStatus() {
     useEffect(() => {
       async function checkConnection() {
         try {
-          const res = await fetch("http://localhost:5000/neoping", {
+          const res = await fetch("http://https://tripmemo-11.onrender.com/neoping", {
             method: "GET",
           });
 
@@ -54,7 +54,7 @@ export default function ConnStatus() {
     useEffect(() => {
       async function checkConnection() {
         try {
-          const res = await fetch("http://localhost:5000/mysqlping", {
+          const res = await fetch("http://https://tripmemo-11.onrender.com/mysqlping", {
             method: "GET",
           });
 

@@ -104,7 +104,7 @@ export default function ProfilePage({ user, userId, friends, onBack, onAvatarUpd
 
   const handleSaveAvatar = async (url) => {
     try {
-      await fetch(`http://localhost:5000/users/${userId}/avatar`, {
+      await fetch(`http://https://tripmemo-11.onrender.com/users/${userId}/avatar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ avatarUrl: url }),
@@ -121,7 +121,7 @@ export default function ProfilePage({ user, userId, friends, onBack, onAvatarUpd
     setError("");
     setSuccess("");
     try {
-      const res = await fetch(`http://localhost:5000/users/${userId}/profile`, {
+      const res = await fetch(`http://https://tripmemo-11.onrender.com/users/${userId}/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName, lastName, username }),

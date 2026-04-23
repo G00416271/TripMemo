@@ -155,7 +155,7 @@ export function SOSPage({ userId, friends, sosContacts, onAddSosContact, onRemov
           // Send message to each SOS contact via MongoDB messages
           for (const contact of sosContacts) {
             try {
-              await fetch("http://localhost:5000/messages", {
+              await fetch("http://https://tripmemo-11.onrender.com/messages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

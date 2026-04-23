@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import "./toolbox.css";
 
 function tbi(i) {
-  return `http://localhost:5000/icons/${i}.svg`;
+  return `http://https://tripmemo-11.onrender.com/icons/${i}.svg`;
 }
 
 function Tools({ tool, setTool, onSave, onPickFiles }) {
