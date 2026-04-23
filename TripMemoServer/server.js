@@ -49,14 +49,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Enable CORS
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true,
-  }),
+  })
 );
 
 // app.options("/*", cors({
@@ -1338,6 +1338,8 @@ try {
 } catch (err) {
   console.error("Server startup error:", err);
 }
+
+app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.get("/r2-test", async (req, res) => {
   try {
