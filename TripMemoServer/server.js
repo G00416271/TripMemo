@@ -836,10 +836,7 @@ app.get("/neoping", async (req, res) => {
   res.json(result);
 });
 
-app.get("/mysqlping", async (req, res) => {
-  const result = await mysqlConnectTest();
-  res.json(result);
-});
+
 
 // Get SOS contacts
 app.get("/sos-contacts/:userId", async (req, res) => {
