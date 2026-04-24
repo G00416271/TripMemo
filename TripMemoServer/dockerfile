@@ -1,6 +1,5 @@
 FROM node:20-slim
 
-# Install Python, pip, git, and build tools for native Node modules
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -9,27 +8,24 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libvips-dev \
     pkg-config \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create and use a Python venv (avoids pip system conflicts)
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Pre-install Python deps + bake CLIP weights into the image
 COPY image_classification/requirements.txt ./requirements.txt
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
     python3 -c "import clip; clip.load('ViT-B/32', device='cpu')"
 
-# Install Node deps (rebuilds sharp/bcrypt for Linux)
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy source (uploads dir excluded via .dockerignore)
 COPY . .
 
-# Render sets PORT automatically
 EXPOSE 5000
 
 CMD ["node", "server.js"]
