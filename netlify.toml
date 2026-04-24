@@ -1,7 +1,7 @@
 [build]
   base = "TripMemo"
   command = "npm install && npm run build"
-  publish = "TripMemo/dist"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
