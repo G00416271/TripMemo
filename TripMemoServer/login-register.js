@@ -23,25 +23,33 @@ export default async function login(e, u, p) {
 }
 
 export async function register(u, f, l, e, p) {
-  const hash = await bcrypt.hash(p, 10);
+  try {
+    const hash = await bcrypt.hash(p, 10);
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert({
-      username: u,
-      first_name: f,
-      last_name: l,
-      email: e,
-      password_hash: hash,
-    })
-    .select("user_id, email, username")
-    .single();
+    const { data, error } = await supabase
+      .from("users")
+      .insert({
+        username: u,
+        first_name: f,
+        last_name: l,
+        email: e,
+        password_hash: hash,
+      })
+      .select("user_id, email, username")
+      .single();
 
-  if (error) throw error;
+    if (error) {
+      console.error("Supabase register error:", error.message || JSON.stringify(error));
+      throw error;
+    }
 
-  return {
-    user_id: data.user_id,
-    username: data.username,
-    email: data.email,
-  };
+    return {
+      user_id: data.user_id,
+      username: data.username,
+      email: data.email,
+    };
+  } catch (err) {
+    console.error("Register exception:", err.message || JSON.stringify(err));
+    throw err;
+  }
 }
