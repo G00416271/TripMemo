@@ -128,8 +128,8 @@ app.post("/login", upload.none(), async (req, res) => {
 
   res.cookie("session", user.user_id, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false,
+    sameSite: "none", //was previously lax
+    secure: true, //was previously false
     maxAge: 86400000,
   });
   return res.status(200).json(user);
@@ -293,8 +293,8 @@ app.post("/register", async (req, res) => {
 
   res.cookie("session", user.user_id, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false,
+    sameSite: "none", //was previously lax
+    secure: true, //was previously false
     maxAge: 86400000,
   });
   return res.status(201).json(user);
@@ -312,7 +312,7 @@ app.get("/me", requireAuth, async (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
-  res.clearCookie("session", { httpOnly: true, sameSite: "lax", secure: false });
+  res.clearCookie("session", { httpOnly: true, sameSite: "none", secure: true }); //was previosly lax and false
   res.sendStatus(200);
 });
 
