@@ -1,13 +1,14 @@
-import db from "./db.js";
+import supabase from "./supabaseClient.js";
 
 export default async function getMemories(formData) {
-
   if (formData.action === "fetch") {
-    const [rows] = await db.execute(
-      "SELECT memory_id, title, elements, created_at, privacy_level FROM memories WHERE user_id = ?",
-      [formData.user_id],
-    );
-    return rows;
+    const { data, error } = await supabase
+      .from("memories")
+      .select("memory_id, title, elements, created_at, privacy_level")
+      .eq("user_id", formData.user_id);
+
+    if (error) throw error;
+    return data;
   }
 
   if (formData.action === "delete") {
@@ -15,11 +16,14 @@ export default async function getMemories(formData) {
     if (!Number.isFinite(memoryId) || memoryId <= 0) {
       return { error: "memory_id required" };
     }
-    const [result] = await db.execute(
-      "DELETE FROM memories WHERE memory_id = ?",
-      [memoryId],
-    );
-    return { ok: true, affectedRows: result.affectedRows };
+
+    const { error } = await supabase
+      .from("memories")
+      .delete()
+      .eq("memory_id", memoryId);
+
+    if (error) throw error;
+    return { ok: true };
   }
 
   if (formData.action === "create") {
@@ -30,18 +34,27 @@ export default async function getMemories(formData) {
     if (!title) return { error: "title required" };
     if (!userId) return { error: "user_id required" };
 
-    const [result] = await db.execute(
-      "INSERT INTO memories (user_id, title, elements, tags, privacy_level) VALUES (?, ?, JSON_OBJECT(), JSON_ARRAY(), ?)",
-      [userId, title, privacyLevel],
-    );
+    const { data, error } = await supabase
+      .from("memories")
+      .insert({
+        user_id: userId,
+        title,
+        elements: {},
+        tags: [],
+        privacy_level: privacyLevel,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return {
       ok: true,
       memory: {
-        memory_id: result.insertId,
-        title,
-        privacy_level: privacyLevel,
-        created_at: new Date().toISOString(),
+        memory_id: data.memory_id,
+        title: data.title,
+        privacy_level: data.privacy_level,
+        created_at: data.created_at,
         thumbnail: "",
         elements: {},
         tags: [],
@@ -49,7 +62,6 @@ export default async function getMemories(formData) {
     };
   }
 
-  // ← now a top-level block, not nested inside create
   if (formData.action === "update_privacy") {
     const memoryId = Number(formData.memory_id);
     const privacyLevel = String(formData.privacy_level ?? "public");
@@ -58,11 +70,12 @@ export default async function getMemories(formData) {
       return { error: "memory_id required" };
     }
 
-    await db.execute(
-      "UPDATE memories SET privacy_level = ? WHERE memory_id = ?",
-      [privacyLevel, memoryId],
-    );
+    const { error } = await supabase
+      .from("memories")
+      .update({ privacy_level: privacyLevel })
+      .eq("memory_id", memoryId);
 
+    if (error) throw error;
     return { ok: true };
   }
 }

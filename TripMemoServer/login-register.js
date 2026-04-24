@@ -1,74 +1,47 @@
 import bcrypt from "bcrypt";
-import db from "./db.js";
+import supabase from "./supabaseClient.js";
 
-
-//login
 export default async function login(e, u, p) {
-  let logincredentials = "";
+  const credential = e || u;
+  if (!credential) return;
 
-  //choose to sign in via username or email
-  if (e != "") {
-    logincredentials = e;
-  } else if (u != "") {
-    logincredentials = u;
-  } else {
-    return;
-  }
+  const { data: rows, error } = await supabase
+    .from("users")
+    .select("user_id, email, username, password_hash")
+    .or(`email.eq.${credential},username.eq.${credential}`);
 
-  //calling for stored username and password
-const [rows] = await db.execute(
-  `SELECT user_id, email, username, password_hash 
-   FROM users WHERE email = ? OR username = ?`,
-  [logincredentials, logincredentials],
-);
+  if (error || !rows || rows.length === 0) return;
 
-  if (rows.length < 1) {
-    return;
-  }
-
-
-
-  //   await db.execute(
-  //     `UPDATE users
-  //     SET password_hash = ?
-  //     WHERE user_id = ?;
-  //     `,[hash, 10101019]
-  //   );
-
-  //if the stored password and the attempted password are the same
   const match = await bcrypt.compare(p, rows[0].password_hash);
-  if (match) {
-    return {
-      user_id: rows[0].user_id,
-      username: rows[0].username,
-      email: rows[0].email,
-    };
-  } else {
-    return;
-  }
+  if (!match) return;
+
+  return {
+    user_id: rows[0].user_id,
+    username: rows[0].username,
+    email: rows[0].email,
+  };
 }
 
 export async function register(u, f, l, e, p) {
-  const saltRounds = 10;
-  const hash = await bcrypt.hash(p, saltRounds);
+  const hash = await bcrypt.hash(p, 10);
 
-    await db.execute(
-    `INSERT INTO users (username, first_name, last_name, email, password_hash)
-    VALUES (?, ?, ?, ?, ?);
-    `,
-    [u, f, l, e, hash]
-  );
+  const { data, error } = await supabase
+    .from("users")
+    .insert({
+      username: u,
+      first_name: f,
+      last_name: l,
+      email: e,
+      password_hash: hash,
+    })
+    .select("user_id, email, username")
+    .single();
 
-  const [rows] = await db.execute(
-    `SELECT user_id, email, username FROM users WHERE email = ?`,
-    [e],
-  );
+  if (error) throw error;
 
   return {
-      user_id: rows[0].user_id,
-      username: rows[0].username,
-      email: rows[0].email,
-    };
+    user_id: data.user_id,
+    username: data.username,
+    email: data.email,
+  };
 }
-
-//register("testuser", "Test", "User", "test@example.com", "password123");

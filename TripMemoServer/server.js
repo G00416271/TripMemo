@@ -1,7 +1,7 @@
-import "dotenv/config"; // must be first
+import "dotenv/config";
 
-import dns from 'node:dns';
-dns.setDefaultResultOrder('ipv4first');
+import dns from "node:dns";
+dns.setDefaultResultOrder("ipv4first");
 
 import express from "express";
 import bodyParser from "body-parser";
@@ -10,19 +10,16 @@ import path from "path";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
-import fs from "fs";
 import crypto from "crypto";
 
 import { uploadToR2, generateSignedUrl } from "./r2.js";
-import processImages from "./dataScraper.js";
 import getInterests from "./InterestReq.js";
 import getNodes from "./neoDB.js";
 import getMemories from "./MemoriesReq.js";
 import { neoConnectTest } from "./neoConnectTest.js";
-import { mysqlConnectTest } from "./dbConnTest.js";
 import login, { register } from "./login-register.js";
 import requireAuth from "./auth.js";
-import db from "./db.js";
+import supabase from "./supabaseClient.js";
 import { clipAnalyse } from "./clipAnalyse.js";
 import stage from "./imageStaging.js";
 import canvasDbRoutes from "./canvasDbRoutes.js";
@@ -36,22 +33,18 @@ import {
 } from "./ChallengeManager.js";
 
 import connectMongoDB from "./mongoDB.js";
-import User from "./models/User.js";
-import session from "express-session";
 import Message from "./models/Message.js";
 import GroupMessage from "./models/GroupMessage.js";
 
 ensureChallengeTable().catch(console.error);
 initChallengeVectors().catch(console.error);
 
-// Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
@@ -59,147 +52,41 @@ app.use(
   })
 );
 
-// app.options("/*", cors({
-//   origin: "http://localhost:5173",
-//   credentials: true
-// }));
-
 app.use(cookieParser());
-
-// const requireAuth = (req, res, next) => {
-//   const userId = req.cookies.session;
-//   if (!userId) return res.sendStatus(401);
-//   req.userId = userId;
-//   next();
-// };
-
-// Parse requests
 app.use(bodyParser.urlencoded({ extended: true, limit: "500mb" }));
 app.use(bodyParser.json({ limit: "500mb" }));
 app.use("/api/canvas", canvasDbRoutes);
 app.use("/api/canvas", canvasShareRoutes);
 
-// Serve static icons
 app.use("/icons", express.static(path.join(__dirname, "Icons")));
 
-// GET icons (safe)
 app.get("/icons", (req, res) => {
-  try {
-    res.json({ message: "Icons are available at /icons/<filename>.svg" });
-  } catch (err) {
-    console.error("GET /icons error:", err);
-    res.status(500).json({ error: "Failed to load icons" });
-  }
+  res.json({ message: "Icons are available at /icons/<filename>.svg" });
 });
 
-// ---------------------------------------
-//  FILE UPLOAD ENDPOINT (DATASCRAPER)
-// ---------------------------------------
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB per file
+  limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-// app.post("/process-images", upload.single("file"), async (req, res) => {
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({ error: "No file uploaded" });
-//     }
-
-//     const fileBuffer = req.file.buffer;
-//     const fileName = req.file.originalname;
-
-//     let filePath;
-//     try {
-//       filePath = req.file.path;
-//     } catch (err) {
-//       console.error("File path error:", err);
-//       return res.status(500).json({ error: "Upload failed" });
-//     }
-
-//     // Process images
-//     let imagesResult = {};
-//     try {
-//       imagesResult = await processImages([filePath]);
-//     } catch (err) {
-//       console.error("processImages() error:", err);
-//       return res.status(500).json({ error: "Image processing failed" });
-//     }
-
-//     //clip
-//     let clipAnalysis = {};
-//     try {
-//       clipAnalysis = await clipAnalyseBytes([{ name: fileName, buffer: fileBuffer }]);
-//     } catch (err) {
-//       console.error("clipAnalyseBytes() error:", err);
-//       return res.status(500).json({ error: "CLIP analysis failed" });
-//     }
-
-//     // Extract tags safely
-//     let tags = [];
-//     try {
-//       tags = imagesResult.tags || [];
-//     } catch (err) {
-//       console.error("Tag extraction error:", err);
-//       tags = [];
-//     }
-
-//     // User interest matching
-//     let interestsResult = {};
-//     try {
-//       interestsResult = await getInterests(tags, req.body);
-//     } catch (err) {
-//       console.error("getInterests() error:", err);
-//       interestsResult = { error: "Interest matching failed" };
-//     }
-
-//     // Neo4j matching
-//     let neo4jResult = [];
-//     try {
-//       neo4jResult = await getNodes(interestsResult.tags || []);
-//     } catch (err) {
-//       console.error("Neo4j getNodes() error:", err);
-//       neo4jResult = [];
-//     }
-
-//     // Final combined response
-//     const finalResult = {
-//       imageAnalysis: imagesResult,
-//       matchedUserInterests: interestsResult,
-//       relatedLocations: neo4jResult
-//     };
-
-//     res.json(finalResult);
-
-//   } catch (err) {
-//     console.error("Error in /process-images route:", err);
-//     res.status(500).json({ error: "Processing failed" });
-//   }
-// });
+// ── process images ──────────────────────────────────────
 app.post("/process-images", upload.array("files"), async (req, res) => {
   try {
-    // 1. Check if files were uploaded
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    // 2. Stage the images
     const stagedImages = await stage(req.files);
-
-    // 3. Check if staging returned anything
     if (!stagedImages || stagedImages.length === 0) {
       return res.status(400).json({ error: "No images were staged" });
     }
 
-    // 4. Build payload
     const payload = stagedImages.map((img, i) => ({
       name: req.files[i]?.originalname || `image_${i}.jpg`,
       data: img.buffer.toString("base64"),
     }));
 
     const clipAnalysis = await clipAnalyse(payload);
-    console.log(JSON.stringify(clipAnalysis, null, 2));
-
     return res.json(clipAnalysis);
   } catch (err) {
     console.error(err);
@@ -208,25 +95,20 @@ app.post("/process-images", upload.array("files"), async (req, res) => {
 });
 
 app.get("/debug-tags", async (req, res) => {
-  const [rows] = await db.execute(
-    "SELECT tags, JSON_TYPE(tags) AS t FROM memories WHERE memory_id = ?",
-    [Number(req.query.memoryId)],
-  );
-  res.json(rows[0] ?? null);
+  const { data, error } = await supabase
+    .from("memories")
+    .select("tags")
+    .eq("memory_id", Number(req.query.memoryId))
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data ?? null);
 });
 
-// ---------------------------------------
-//  QUICK INTEREST CHECK
-// ---------------------------------------
 app.post("/interestReq", upload.none(), async (req, res) => {
   try {
-    // support both shapes:
-    // 1) req.body.tags + req.body.user
-    // 2) req.body is tags array (old)
     const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
-    const fields = req.body;
-
-    const result = await getInterests(tags, fields);
+    const result = await getInterests(tags, req.body);
     res.json(result);
   } catch (err) {
     console.error("Error in /interestReq route:", err);
@@ -234,13 +116,9 @@ app.post("/interestReq", upload.none(), async (req, res) => {
   }
 });
 
-//-------------------------------------
-//  REGISTER/LOGIN
-//-------------------------------------
-// app.post("/login", upload.none(), async (req, res) => {
+// ── LOGIN ───────────────────────────────────────────────
 app.post("/login", upload.none(), async (req, res) => {
   const { email, username, password } = req.body;
-
   if (!password || (!username && !email)) {
     return res.status(400).json({ error: "Missing credentials" });
   }
@@ -254,179 +132,70 @@ app.post("/login", upload.none(), async (req, res) => {
     secure: false,
     maxAge: 86400000,
   });
-
   return res.status(200).json(user);
 });
 
-//new login route
-// app.post("/login", async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-
-//     // Find user in MongoDB
-//     const user = await User.findOne({ email });
-
-//     if (!user) {
-//       return res.status(401).json({ error: "Invalid email or password" });
-//     }
-
-//     // Check password
-//     const bcrypt = await import('bcrypt');
-//     const isValidPassword = await bcrypt.compare(password, user.password_hash);
-
-//     if (!isValidPassword) {
-//       return res.status(401).json({ error: "Invalid email or password" });
-//     }
-
-//     // Set session
-//     req.session.userId = user._id;
-//     req.session.username = user.username;
-
-//     res.json({
-//       message: "Login successful",
-//       username: user.username,
-//       userId: user._id
-//     });
-//   } catch (error) {
-//     console.error("Login error:", error);
-//     res.status(500).json({ error: "Login failed" });
-//   }
-// });
-
-//new register route
-// app.post("/register", async (req, res) => {
-//   try {
-//     const { username, email, password, firstName, lastName } = req.body;
-
-//     // Check if user already exists
-//     const existingUser = await User.findOne({
-//       $or: [{ email }, { username }]
-//     });
-
-//     if (existingUser) {
-//       return res.status(400).json({
-//         error: existingUser.email === email
-//           ? "Email already registered"
-//           : "Username already taken"
-//       });
-//     }
-
-//     // Hash password
-//     const bcrypt = await import('bcrypt');
-//     const password_hash = await bcrypt.hash(password, 10);
-
-//     // Create new user in MongoDB
-//     const newUser = new User({
-//       username,
-//       email,
-//       password_hash,
-//       first_name: firstName || 'User',
-//       last_name: lastName || 'User',
-//     });
-
-//     await newUser.save();
-
-//     res.status(201).json({
-//       message: "User registered successfully",
-//       userId: newUser._id
-//     });
-//   } catch (error) {
-//     console.error("Register error:", error);
-//     res.status(500).json({ error: "Registration failed" });
-//   }
-// });
-
-//adding friends
+// ── USER SEARCH ─────────────────────────────────────────
 app.get("/users/search", async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) return res.json([]);
 
-    const requestingUserId = req.cookies?.session; // ← was req.session?.userId
+    const requestingUserId = req.cookies?.session;
 
-    const [rows] = await db.execute(
-      `SELECT user_id, username, first_name, last_name, avatar_url
-       FROM users
-       WHERE (username LIKE ? OR first_name LIKE ? OR last_name LIKE ?)
-       AND user_id != ?
-       LIMIT 10`,
-      [`%${query}%`, `%${query}%`, `%${query}%`, requestingUserId]
-    );
+    const { data, error } = await supabase
+      .from("users")
+      .select("user_id, username, first_name, last_name, avatar_url")
+      .or(`username.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+      .neq("user_id", requestingUserId)
+      .limit(10);
 
-    res.json(rows);
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     console.error("🔥 /users/search error:", error);
     res.status(500).json({ error: "Search failed" });
   }
 });
-// app.get("/users/search", async (req, res) => {
-//   try {
-//     const { query } = req.query;
-//     if (!query) return res.json([]);
 
-//     const users = await User.find({
-//       username: { $regex: query, $options: "i" }
-//     }).select("username first_name last_name").limit(10);
-
-//     res.json(users);
-//   } catch (error) {
-//     res.status(500).json({ error: "Search failed" });
-//   }
-// });
-
-// Send a friend request
+// ── FRIEND REQUEST ──────────────────────────────────────
 app.post("/users/friend-request/:id", async (req, res) => {
   try {
     const { senderId } = req.body;
     const receiverId = req.params.id;
 
-    await db.execute(
-      `INSERT INTO friends (user_id, friend_id, status) 
-       VALUES (?, ?, 'pending')
-       ON DUPLICATE KEY UPDATE status = status`,
-      [senderId, receiverId],
-    );
+    const { error } = await supabase
+      .from("friends")
+      .upsert(
+        { user_id: senderId, friend_id: receiverId, status: "pending" },
+        { onConflict: "user_id,friend_id", ignoreDuplicates: true }
+      );
 
+    if (error) throw error;
     res.json({ message: "Friend request sent" });
   } catch (error) {
     console.error("Friend request error:", error);
     res.status(500).json({ error: "Failed to send request" });
   }
 });
-// app.post("/users/friend-request/:id", async (req, res) => {
-//   try {
-//     const { senderId } = req.body;
-//     const receiverId = req.params.id;
 
-//     await User.findByIdAndUpdate(receiverId, {
-//       $addToSet: { friendRequests: senderId }
-//     });
-
-//     res.json({ message: "Friend request sent" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to send request" });
-//   }
-// });
-
-// Accept a friend request
 app.post("/users/friend-request/:id/accept", async (req, res) => {
   try {
     const { userId } = req.body;
     const senderId = req.params.id;
 
-    // Update the existing request to accepted
-    await db.execute(
-      `UPDATE friends SET status = 'accepted' 
-       WHERE user_id = ? AND friend_id = ?`,
-      [senderId, userId],
-    );
-    // Add the reverse friendship
-    await db.execute(
-      `INSERT INTO friends (user_id, friend_id, status)
-       VALUES (?, ?, 'accepted')
-       ON DUPLICATE KEY UPDATE status = 'accepted'`,
-      [userId, senderId],
-    );
+    await supabase
+      .from("friends")
+      .update({ status: "accepted" })
+      .eq("user_id", senderId)
+      .eq("friend_id", userId);
+
+    await supabase
+      .from("friends")
+      .upsert(
+        { user_id: userId, friend_id: senderId, status: "accepted" },
+        { onConflict: "user_id,friend_id" }
+      );
 
     res.json({ message: "Friend request accepted" });
   } catch (error) {
@@ -434,212 +203,87 @@ app.post("/users/friend-request/:id/accept", async (req, res) => {
     res.status(500).json({ error: "Failed to accept request" });
   }
 });
-// app.post("/users/friend-request/:id/accept", async (req, res) => {
-//   try {
-//     const { userId } = req.body;
-//     const senderId = req.params.id;
 
-//     // Add each other as friends
-//     await User.findByIdAndUpdate(userId, {
-//       $addToSet: { friends: senderId },
-//       $pull: { friendRequests: senderId }
-//     });
-
-//     await User.findByIdAndUpdate(senderId, {
-//       $addToSet: { friends: userId }
-//     });
-
-//     res.json({ message: "Friend request accepted" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to accept request" });
-//   }
-// });
-
-// Decline a friend request
 app.post("/users/friend-request/:id/decline", async (req, res) => {
   try {
     const { userId } = req.body;
     const senderId = req.params.id;
 
-    await db.execute(
-      `DELETE FROM friends 
-       WHERE user_id = ? AND friend_id = ?`,
-      [senderId, userId],
-    );
+    await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", senderId)
+      .eq("friend_id", userId);
 
     res.json({ message: "Friend request declined" });
   } catch (error) {
     res.status(500).json({ error: "Failed to decline request" });
   }
 });
-// app.post("/users/friend-request/:id/decline", async (req, res) => {
-//   try {
-//     const { userId } = req.body;
-//     const senderId = req.params.id;
 
-//     await User.findByIdAndUpdate(userId, {
-//       $pull: { friendRequests: senderId }
-//     });
-
-//     res.json({ message: "Friend request declined" });
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to decline request" });
-//   }
-// });
-
-// Get friends list
+// ── FRIENDS & REQUESTS LISTS ────────────────────────────
 app.get("/users/:id/friends", async (req, res) => {
   try {
-    const userId = req.params.id;
-    const [rows] = await db.execute(
-      `SELECT u.user_id, u.username, u.first_name, u.last_name, u.avatar_url
-       FROM friends f
-       JOIN users u ON u.user_id = f.friend_id
-       WHERE f.user_id = ? AND f.status = 'accepted'`,
-      [userId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("friends")
+      .select("friend_id, users!friends_friend_id_fkey(user_id, username, first_name, last_name, avatar_url)")
+      .eq("user_id", req.params.id)
+      .eq("status", "accepted");
+
+    if (error) throw error;
+    res.json(data.map((row) => row.users));
   } catch (error) {
+    console.error("friends error:", error);
     res.status(500).json({ error: "Failed to get friends" });
   }
 });
-// app.get("/users/:id/friends", async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id)
-//       .populate("friends", "username first_name last_name");
 
-//     res.json(user.friends);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get friends" });
-//   }
-// });
-
-// app.get("/users/:id/friends", async (req, res) => {
-
-//   try {
-
-//     const userId = req.params.id;
-
-//     const [rows] = await db.execute(
-
-//       `SELECT u.id, u.username, u.first_name, u.last_name
-
-//        FROM friends f
-
-//        JOIN users u ON u.id = f.friend_id
-
-//        WHERE f.user_id = ? AND f.status = 'accepted'`,
-
-//       [userId]
-
-//     );
-
-//     res.json(rows);
-//     console.log("friends" + rows)
-
-//   } catch (error) {
-
-//     res.status(500).json({ error: "Failed to get friends" });
-
-//   }
-
-// });
-
-// Get friend requests
 app.get("/users/:id/friend-requests", async (req, res) => {
   try {
-    const userId = req.params.id;
-    const [rows] = await db.execute(
-      `SELECT u.user_id, u.username, u.first_name, u.last_name, u.avatar_url
-       FROM friends f
-       JOIN users u ON u.user_id = f.user_id
-       WHERE f.friend_id = ? AND f.status = 'pending'`,
-      [userId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("friends")
+      .select("user_id, users!friends_user_id_fkey(user_id, username, first_name, last_name, avatar_url)")
+      .eq("friend_id", req.params.id)
+      .eq("status", "pending");
+
+    if (error) throw error;
+    res.json(data.map((row) => row.users));
   } catch (error) {
+    console.error("friend requests error:", error);
     res.status(500).json({ error: "Failed to get requests" });
   }
 });
-// app.get("/users/:id/friend-requests", async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id)
-//       .populate("friendRequests", "username first_name last_name");
 
-//     res.json(user.friendRequests);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get requests" });
-//   }
-// });
-
-// app.get("/me/mongo", async (req, res) => {
-//   try {
-//     const user = await User.findOne({ username: req.session?.username })
-//       .select("_id username email");
-//     if (!user) return res.sendStatus(401);
-//     res.json(user);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get user" });
-//   }
-// });
-
-// Send a message
+// ── MESSAGES (MongoDB) ──────────────────────────────────
 app.post("/messages", async (req, res) => {
   try {
     const { senderId, receiverId, text } = req.body;
-
     const message = new Message({ senderId, receiverId, text });
     await message.save();
-
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ error: "Failed to send message" });
   }
 });
 
-// Get messages between two users
 app.get("/messages/:userId/:friendId", async (req, res) => {
   try {
     const { userId, friendId } = req.params;
-    console.log("Fetching messages for:", userId, friendId);
-
     const messages = await Message.find({
       $or: [
         { senderId: userId, receiverId: friendId },
         { senderId: friendId, receiverId: userId },
       ],
     }).sort({ createdAt: 1 });
-
     res.json(messages);
   } catch (error) {
-    console.error("Messages error:", error);
     res.status(500).json({ error: "Failed to get messages" });
   }
 });
-// app.get("/messages/:userId/:friendId", async (req, res) => {
-//   try {
-//     const { userId, friendId } = req.params;
 
-//     const messages = await Message.find({
-//       $or: [
-//         { senderId: userId, receiverId: friendId },
-//         { senderId: friendId, receiverId: userId }
-//       ]
-//     }).sort({ createdAt: 1 });
-
-//     res.json(messages);
-//   } catch (error) {
-//     res.status(500).json({ error: "Failed to get messages" });
-//   }
-// });
-
-// register
-// app.post("/register", upload.none(), async (req, res) => {
-//   const {username, firstName, lastName, email, password} = req.body;
-
+// ── REGISTER ────────────────────────────────────────────
 app.post("/register", async (req, res) => {
   const { username, firstName, lastName, email, password } = req.body;
-
   if (!password || (!username && !email)) {
     return res.status(400).json({ error: "Missing credentials" });
   }
@@ -653,31 +297,26 @@ app.post("/register", async (req, res) => {
     secure: false,
     maxAge: 86400000,
   });
-
   return res.status(201).json(user);
 });
 
-//auth after login
 app.get("/me", requireAuth, async (req, res) => {
-  const [rows] = await db.execute(
-    `SELECT user_id, username, email, first_name, last_name, avatar_url, created_at 
-     FROM users WHERE user_id = ?`,
-    [req.userId],
-  );
-  res.json(rows[0]);
+  const { data, error } = await supabase
+    .from("users")
+    .select("user_id, username, email, first_name, last_name, avatar_url, created_at")
+    .eq("user_id", req.userId)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
-//logout
 app.post("/logout", (req, res) => {
-  res.clearCookie("session", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false, // true in prod
-  });
-
+  res.clearCookie("session", { httpOnly: true, sameSite: "lax", secure: false });
   res.sendStatus(200);
 });
 
+// ── MEMORIES ────────────────────────────────────────────
 app.post("/memories", upload.none(), async (req, res) => {
   try {
     const result = await getMemories(req.body);
@@ -688,107 +327,30 @@ app.post("/memories", upload.none(), async (req, res) => {
   }
 });
 
-app.post(
-  "/challenge-submit",
-  requireAuth,
-  upload.array("images"),
-  async (req, res) => {
-    try {
-      const taskId = req.body.taskId;
-      const clipHint = req.body.clipHint;
-      const location = req.body.location
-        ? JSON.parse(req.body.location) // comes in as a JSON string from FormData
-        : null;
-
-      // Run uploaded images through CLIP to get 512-dim vectors
-      const imageVectors = await embedImages(req.files ?? []);
-
-      console.group(`📤 /challenge-submit  •  ${taskId}`);
-      console.log("clipHint:", clipHint);
-      console.log("location:", location);
-      console.log("images:", `${req.files?.length ?? 0} file(s)`);
-      console.log("vectorDims:", imageVectors[0]?.length ?? 0);
-      console.groupEnd();
-
-      const result = await validateChallenge({
-        userId: req.userId,
-        taskId,
-        imageVectors,
-        location,
-      });
-
-      res.status(result.success ? 200 : 422).json(result);
-    } catch (err) {
-      console.error("challenge-submit error:", err);
-      res.status(500).json({
-        success: false,
-        reason: "server_error",
-        message: "Server error. Please try again.",
-      });
-    }
-  },
-);
-
-// GET /challenge-completions — fetch all completed challenges for the logged-in user
-app.get("/challenge-completions", requireAuth, async (req, res) => {
-  const completions = await getCompletedChallenges(req.userId);
-  res.json(completions);
-});
-
-app.get("/challenges/completed", requireAuth, async (req, res) => {
-  const data = await getCompletedChallenges(req.userId);
-  res.json(data);
-});
-
-app.get("/api/deezer/search", async (req, res) => {
-  try {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: "Missing query" });
-
-    const response = await fetch(
-      `https://api.deezer.com/search?q=${encodeURIComponent(q)}`,
-    );
-
-    const data = await response.json();
-
-    const cleaned = (data.data || []).map((track) => ({
-      id: track.id,
-      title: track.title,
-      artist: track.artist.name, // ✅ FIX
-      cover: track.album.cover_big,
-      preview: track.preview,
-    }));
-
-    res.json(cleaned);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Deezer fetch failed" });
-  }
-});
-
-// ── EXPLORE: public memories ──────────────────────────────
-// Add this route to server.js (before the server start block)
-
 app.get("/memories/explore", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT 
-         m.memory_id,
-         m.title,
-         m.created_at,
-         m.privacy_level,
-         m.user_id,
-         u.username,
-         u.first_name,
-         u.last_name,
-         u.avatar_url
-       FROM memories m
-       JOIN users u ON u.user_id = m.user_id
-       WHERE m.privacy_level = 'public'
-         AND m.deleted_at IS NULL
-       ORDER BY m.created_at DESC
-       LIMIT 100`,
-    );
+    const { data, error } = await supabase
+      .from("memories")
+      .select("memory_id, title, created_at, privacy_level, user_id, users(username, first_name, last_name, avatar_url)")
+      .eq("privacy_level", "public")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    // Flatten joined user fields
+    const rows = data.map((m) => ({
+      memory_id: m.memory_id,
+      title: m.title,
+      created_at: m.created_at,
+      privacy_level: m.privacy_level,
+      user_id: m.user_id,
+      username: m.users?.username,
+      first_name: m.users?.first_name,
+      last_name: m.users?.last_name,
+      avatar_url: m.users?.avatar_url,
+    }));
     res.json(rows);
   } catch (error) {
     console.error("Explore error:", error);
@@ -796,448 +358,400 @@ app.get("/memories/explore", async (req, res) => {
   }
 });
 
+// ── CHALLENGES ──────────────────────────────────────────
+app.post("/challenge-submit", requireAuth, upload.array("images"), async (req, res) => {
+  try {
+    const taskId = req.body.taskId;
+    const location = req.body.location ? JSON.parse(req.body.location) : null;
+    const imageVectors = await embedImages(req.files ?? []);
+
+    const result = await validateChallenge({
+      userId: req.userId,
+      taskId,
+      imageVectors,
+      location,
+    });
+
+    res.status(result.success ? 200 : 422).json(result);
+  } catch (err) {
+    console.error("challenge-submit error:", err);
+    res.status(500).json({ success: false, reason: "server_error", message: "Server error. Please try again." });
+  }
+});
+
+app.get("/challenge-completions", requireAuth, async (req, res) => {
+  res.json(await getCompletedChallenges(req.userId));
+});
+
+app.get("/challenges/completed", requireAuth, async (req, res) => {
+  res.json(await getCompletedChallenges(req.userId));
+});
+
+// ── DEEZER ──────────────────────────────────────────────
+app.get("/api/deezer/search", async (req, res) => {
+  try {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ error: "Missing query" });
+    const response = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}`);
+    const data = await response.json();
+    const cleaned = (data.data || []).map((track) => ({
+      id: track.id,
+      title: track.title,
+      artist: track.artist.name,
+      cover: track.album.cover_big,
+      preview: track.preview,
+    }));
+    res.json(cleaned);
+  } catch (err) {
+    res.status(500).json({ error: "Deezer fetch failed" });
+  }
+});
+
+// ── IMAGE PROXY ─────────────────────────────────────────
 app.get("/api/image-proxy", async (req, res) => {
   try {
     const url = req.query.url;
-
-    // 🔥 STRONG VALIDATION
     if (!url || typeof url !== "string" || !url.startsWith("http")) {
-      console.log("Invalid URL received:", url);
       return res.status(400).send("Invalid or missing URL");
     }
-
     const response = await fetch(url);
-
-    if (!response.ok) {
-      console.log("❌ Fetch failed:", response.status);
-      return res.status(500).send("Failed to fetch image");
-    }
-
+    if (!response.ok) return res.status(500).send("Failed to fetch image");
     const buffer = await response.arrayBuffer();
-
-    res.set(
-      "Content-Type",
-      response.headers.get("content-type") || "image/jpeg",
-    );
-
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
     res.send(Buffer.from(buffer));
   } catch (err) {
-    console.error("❌ Proxy error:", err);
     res.status(500).send("Proxy error");
   }
 });
-//connection tests
-app.get("/ping", (req, res) => {
-  res.send("pong");
-});
+
+app.get("/ping", (req, res) => res.send("pong"));
 
 app.get("/neoping", async (req, res) => {
   const result = await neoConnectTest();
   res.json(result);
 });
 
-
-
-// Get SOS contacts
+// ── SOS CONTACTS ────────────────────────────────────────
 app.get("/sos-contacts/:userId", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT u.user_id, u.username, u.first_name, u.last_name
-       FROM sos_contacts sc
-       JOIN users u ON u.user_id = sc.friend_id
-       WHERE sc.user_id = ?`,
-      [req.params.userId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("sos_contacts")
+      .select("users!sos_contacts_friend_id_fkey(user_id, username, first_name, last_name)")
+      .eq("user_id", req.params.userId);
+
+    if (error) throw error;
+    res.json(data.map((r) => r.users));
   } catch (error) {
     console.error("Get SOS contacts error:", error);
     res.status(500).json({ error: "Failed to get SOS contacts" });
   }
 });
 
-// Add SOS contact
 app.post("/sos-contacts", async (req, res) => {
   try {
     const { userId, friendId } = req.body;
-    await db.execute(
-      `INSERT IGNORE INTO sos_contacts (user_id, friend_id) VALUES (?, ?)`,
-      [userId, friendId],
-    );
+    await supabase
+      .from("sos_contacts")
+      .upsert({ user_id: userId, friend_id: friendId }, { onConflict: "user_id,friend_id", ignoreDuplicates: true });
     res.json({ message: "SOS contact added" });
   } catch (error) {
-    console.error("Add SOS contact error:", error);
     res.status(500).json({ error: "Failed to add SOS contact" });
   }
 });
 
-// Remove SOS contact
 app.delete("/sos-contacts/:userId/:friendId", async (req, res) => {
   try {
     const { userId, friendId } = req.params;
-    await db.execute(
-      `DELETE FROM sos_contacts WHERE user_id = ? AND friend_id = ?`,
-      [userId, friendId],
-    );
+    await supabase.from("sos_contacts").delete().eq("user_id", userId).eq("friend_id", friendId);
     res.json({ message: "SOS contact removed" });
   } catch (error) {
-    console.error("Remove SOS contact error:", error);
     res.status(500).json({ error: "Failed to remove SOS contact" });
   }
 });
 
-// ── BUCKET LISTS ──────────────────────────────────────────
-
-// Get items for a bucket list — MUST be before /:id
+// ── BUCKET LISTS ────────────────────────────────────────
 app.get("/bucket-lists/:id/items", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT * FROM bucket_list_items WHERE bucket_list_id = ? ORDER BY position`,
-      [req.params.id],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("bucket_list_items")
+      .select("*")
+      .eq("bucket_list_id", req.params.id)
+      .order("position");
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: "Failed to get items" });
   }
 });
 
-// Add item to bucket list — MUST be before /:id
 app.post("/bucket-lists/:id/items", async (req, res) => {
   try {
     const { type, content, position } = req.body;
-    const itemId = crypto.randomUUID();
-    await db.execute(
-      `INSERT INTO bucket_list_items (id, bucket_list_id, type, content, position) VALUES (?, ?, ?, ?, ?)`,
-      [itemId, req.params.id, type, content, position || 0],
-    );
-    const [rows] = await db.execute(
-      `SELECT * FROM bucket_list_items WHERE id = ?`,
-      [itemId],
-    );
-    res.status(201).json(rows[0]);
+    const { data, error } = await supabase
+      .from("bucket_list_items")
+      .insert({
+        id: crypto.randomUUID(),
+        bucket_list_id: req.params.id,
+        type,
+        content,
+        position: position || 0,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
     res.status(500).json({ error: "Failed to add item" });
   }
 });
 
-// Update last accessed — MUST be before /:id
 app.patch("/bucket-lists/:id/accessed", async (req, res) => {
   try {
-    await db.execute(
-      `UPDATE bucket_lists SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?`,
-      [req.params.id],
-    );
+    await supabase
+      .from("bucket_lists")
+      .update({ last_accessed: new Date().toISOString() })
+      .eq("id", req.params.id);
     res.json({ message: "Last accessed updated" });
   } catch (error) {
     res.status(500).json({ error: "Failed to update last accessed" });
   }
 });
 
-// Delete item — MUST be before /:id
 app.delete("/bucket-lists/items/:itemId", async (req, res) => {
   try {
-    await db.execute(`DELETE FROM bucket_list_items WHERE id = ?`, [
-      req.params.itemId,
-    ]);
+    await supabase.from("bucket_list_items").delete().eq("id", req.params.itemId);
     res.json({ message: "Item deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete item" });
   }
 });
 
-// Update item content — MUST be before /:id
 app.patch("/bucket-lists/items/:itemId", async (req, res) => {
   try {
     const { content } = req.body;
-    await db.execute(`UPDATE bucket_list_items SET content = ? WHERE id = ?`, [
-      content,
-      req.params.itemId,
-    ]);
+    await supabase.from("bucket_list_items").update({ content }).eq("id", req.params.itemId);
     res.json({ message: "Item updated" });
   } catch (error) {
     res.status(500).json({ error: "Failed to update item" });
   }
 });
 
-// Check item — MUST be before /:id
 app.patch("/bucket-lists/items/:itemId/check", async (req, res) => {
   try {
     const { checked } = req.body;
-    await db.execute(`UPDATE bucket_list_items SET checked = ? WHERE id = ?`, [
-      checked,
-      req.params.itemId,
-    ]);
+    await supabase.from("bucket_list_items").update({ checked }).eq("id", req.params.itemId);
     res.json({ message: "Item checked" });
   } catch (error) {
     res.status(500).json({ error: "Failed to check item" });
   }
 });
 
-// Get all bucket lists for a user
 app.get("/bucket-lists/:userId", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT * FROM bucket_lists WHERE user_id = ? ORDER BY created_at DESC`,
-      [req.params.userId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("bucket_lists")
+      .select("*")
+      .eq("user_id", req.params.userId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
-    console.error("Get bucket lists error:", error);
     res.status(500).json({ error: "Failed to get bucket lists" });
   }
 });
 
-// Create a bucket list
 app.post("/bucket-lists", async (req, res) => {
   try {
     const { userId, title } = req.body;
-    const id = crypto.randomUUID();
-    await db.execute(
-      `INSERT INTO bucket_lists (id, user_id, title) VALUES (?, ?, ?)`,
-      [id, userId, title],
-    );
-    const [rows] = await db.execute(`SELECT * FROM bucket_lists WHERE id = ?`, [
-      id,
-    ]);
-    res.status(201).json(rows[0]);
+    const { data, error } = await supabase
+      .from("bucket_lists")
+      .insert({ id: crypto.randomUUID(), user_id: userId, title })
+      .select()
+      .single();
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
-    console.error("Create bucket list error:", error);
     res.status(500).json({ error: "Failed to create bucket list" });
   }
 });
 
-// Rename a bucket list
 app.patch("/bucket-lists/:id", async (req, res) => {
   try {
-    const { title } = req.body;
-    await db.execute(`UPDATE bucket_lists SET title = ? WHERE id = ?`, [
-      title,
-      req.params.id,
-    ]);
+    await supabase.from("bucket_lists").update({ title: req.body.title }).eq("id", req.params.id);
     res.json({ message: "Bucket list renamed" });
   } catch (error) {
     res.status(500).json({ error: "Failed to rename bucket list" });
   }
 });
 
-// Delete a bucket list
 app.delete("/bucket-lists/:id", async (req, res) => {
   try {
-    await db.execute(`DELETE FROM bucket_lists WHERE id = ?`, [req.params.id]);
+    await supabase.from("bucket_lists").delete().eq("id", req.params.id);
     res.json({ message: "Bucket list deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete bucket list" });
   }
 });
 
-// Get saved places for a user
+// ── SAVED PLACES ────────────────────────────────────────
 app.get("/saved-places/:userId", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT * FROM saved_places WHERE user_id = ? ORDER BY created_at DESC`,
-      [req.params.userId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("saved_places")
+      .select("*")
+      .eq("user_id", req.params.userId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
-    console.error("Get saved places error:", error);
     res.status(500).json({ error: "Failed to get saved places" });
   }
 });
 
-// Save a place (for maps)
 app.post("/saved-places", async (req, res) => {
   try {
     const { userId, name, latitude, longitude } = req.body;
-    const id = crypto.randomUUID();
-    await db.execute(
-      `INSERT INTO saved_places (id, user_id, name, latitude, longitude) VALUES (?, ?, ?, ?, ?)`,
-      [id, userId, name, latitude, longitude],
-    );
-    const [rows] = await db.execute(`SELECT * FROM saved_places WHERE id = ?`, [
-      id,
-    ]);
-    res.status(201).json(rows[0]);
+    const { data, error } = await supabase
+      .from("saved_places")
+      .insert({ id: crypto.randomUUID(), user_id: userId, name, latitude, longitude })
+      .select()
+      .single();
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
-    console.error("Save place error:", error);
     res.status(500).json({ error: "Failed to save place" });
   }
 });
 
-// Delete a saved place
 app.delete("/saved-places/:id", async (req, res) => {
   try {
-    await db.execute(`DELETE FROM saved_places WHERE id = ?`, [req.params.id]);
+    await supabase.from("saved_places").delete().eq("id", req.params.id);
     res.json({ message: "Place deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete place" });
   }
 });
 
-// Update avatar
+// ── USER PROFILE ────────────────────────────────────────
 app.patch("/users/:userId/avatar", async (req, res) => {
   try {
-    const { avatarUrl } = req.body;
-    await db.execute(`UPDATE users SET avatar_url = ? WHERE user_id = ?`, [
-      avatarUrl,
-      req.params.userId,
-    ]);
+    await supabase.from("users").update({ avatar_url: req.body.avatarUrl }).eq("user_id", req.params.userId);
     res.json({ message: "Avatar updated" });
   } catch (error) {
-    console.error("Update avatar error:", error);
     res.status(500).json({ error: "Failed to update avatar" });
   }
 });
 
-// Update profile
 app.patch("/users/:userId/profile", async (req, res) => {
   try {
     const { firstName, lastName, username } = req.body;
 
-    // Check if username is taken by someone else
-    const [existing] = await db.execute(
-      `SELECT user_id FROM users WHERE username = ? AND user_id != ?`,
-      [username, req.params.userId],
-    );
+    const { data: existing } = await supabase
+      .from("users")
+      .select("user_id")
+      .eq("username", username)
+      .neq("user_id", req.params.userId);
 
-    if (existing.length > 0) {
+    if (existing && existing.length > 0) {
       return res.status(400).json({ error: "Username already exists" });
     }
 
-    await db.execute(
-      `UPDATE users SET first_name = ?, last_name = ?, username = ? WHERE user_id = ?`,
-      [firstName, lastName, username, req.params.userId],
-    );
+    await supabase
+      .from("users")
+      .update({ first_name: firstName, last_name: lastName, username })
+      .eq("user_id", req.params.userId);
 
     res.json({ message: "Profile updated" });
   } catch (error) {
-    console.error("Update profile error:", error);
     res.status(500).json({ error: "Failed to update profile" });
   }
 });
 
-// DA GROUP CHATSSSS
+// ── GROUPS ──────────────────────────────────────────────
+const GROUP_COLOURS = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F"];
 
-const GROUP_COLOURS = [
-  "#FF6B6B",
-  "#4ECDC4",
-  "#45B7D1",
-  "#96CEB4",
-  "#FFEAA7",
-  "#DDA0DD",
-  "#98D8C8",
-  "#F7DC6F",
-];
-
-// Create a group
 app.post("/groups", async (req, res) => {
   try {
     const { name, createdBy, memberIds } = req.body;
-
-    if (memberIds.length > 7) {
-      return res
-        .status(400)
-        .json({ error: "Max 8 members including yourself" });
-    }
+    if (memberIds.length > 7) return res.status(400).json({ error: "Max 8 members including yourself" });
 
     const groupId = crypto.randomUUID();
 
-    await db.execute(
-      `INSERT INTO group_chats (id, name, created_by) VALUES (?, ?, ?)`,
-      [groupId, name, createdBy],
-    );
+    const { data: group, error: groupErr } = await supabase
+      .from("group_chats")
+      .insert({ id: groupId, name, created_by: createdBy })
+      .select()
+      .single();
+    if (groupErr) throw groupErr;
 
-    // Add all members including creator
     const allMembers = [createdBy, ...memberIds];
-    for (let i = 0; i < allMembers.length; i++) {
-      const memberId = allMembers[i];
-      const colour = GROUP_COLOURS[i % GROUP_COLOURS.length];
-      await db.execute(
-        `INSERT INTO group_members (id, group_id, user_id, colour) VALUES (?, ?, ?, ?)`,
-        [crypto.randomUUID(), groupId, memberId, colour],
-      );
-    }
+    const rows = allMembers.map((uid, i) => ({
+      id: crypto.randomUUID(),
+      group_id: groupId,
+      user_id: uid,
+      colour: GROUP_COLOURS[i % GROUP_COLOURS.length],
+    }));
+    const { error: membErr } = await supabase.from("group_members").insert(rows);
+    if (membErr) throw membErr;
 
-    // Send system message
-    await GroupMessage.create({
-      groupId,
-      senderId: "system",
-      senderName: "system",
-      text: "Group created",
-      type: "system",
-    });
+    await GroupMessage.create({ groupId, senderId: "system", senderName: "system", text: "Group created", type: "system" });
 
-    const [group] = await db.execute(`SELECT * FROM group_chats WHERE id = ?`, [
-      groupId,
-    ]);
-
-    res.status(201).json(group[0]);
+    res.status(201).json(group);
   } catch (error) {
     console.error("Create group error:", error);
     res.status(500).json({ error: "Failed to create group" });
   }
 });
 
-// Get groups for a user
 app.get("/groups/user/:userId", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT g.*, gm.colour 
-       FROM group_chats g
-       JOIN group_members gm ON gm.group_id = g.id
-       WHERE gm.user_id = ?
-       ORDER BY g.created_at DESC`,
-      [req.params.userId],
-    );
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("colour, group_chats(*)")
+      .eq("user_id", req.params.userId);
+    if (error) throw error;
+
+    const rows = data.map((r) => ({ ...r.group_chats, colour: r.colour }));
+    rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: "Failed to get groups" });
   }
 });
 
-// Get group members
 app.get("/groups/:groupId/members", async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      `SELECT u.user_id, u.username, u.first_name, u.last_name, u.avatar_url, gm.colour
-       FROM group_members gm
-       JOIN users u ON u.user_id = gm.user_id
-       WHERE gm.group_id = ?`,
-      [req.params.groupId],
-    );
-    res.json(rows);
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("colour, users(user_id, username, first_name, last_name, avatar_url)")
+      .eq("group_id", req.params.groupId);
+    if (error) throw error;
+    res.json(data.map((r) => ({ ...r.users, colour: r.colour })));
   } catch (error) {
     res.status(500).json({ error: "Failed to get members" });
   }
 });
 
-// Add member to group
 app.post("/groups/:groupId/members", async (req, res) => {
   try {
     const { userId } = req.body;
     const { groupId } = req.params;
 
-    // Check max members
-    const [members] = await db.execute(
-      `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
-      [groupId],
-    );
+    const { data: existing } = await supabase
+      .from("group_members")
+      .select("colour")
+      .eq("group_id", groupId);
 
-    if (members[0].count >= 8) {
+    if (existing && existing.length >= 8) {
       return res.status(400).json({ error: "Group is full (max 8 members)" });
     }
 
-    // Assign next available colour
-    const [existingColours] = await db.execute(
-      `SELECT colour FROM group_members WHERE group_id = ?`,
-      [groupId],
-    );
-    const usedColours = existingColours.map((r) => r.colour);
-    const colour =
-      GROUP_COLOURS.find((c) => !usedColours.includes(c)) || GROUP_COLOURS[0];
+    const usedColours = (existing || []).map((r) => r.colour);
+    const colour = GROUP_COLOURS.find((c) => !usedColours.includes(c)) || GROUP_COLOURS[0];
 
-    await db.execute(
-      `INSERT INTO group_members (id, group_id, user_id, colour) VALUES (?, ?, ?, ?)`,
-      [crypto.randomUUID(), groupId, userId, colour],
-    );
+    await supabase
+      .from("group_members")
+      .insert({ id: crypto.randomUUID(), group_id: groupId, user_id: userId, colour });
 
     res.json({ message: "Member added" });
   } catch (error) {
@@ -1245,34 +759,18 @@ app.post("/groups/:groupId/members", async (req, res) => {
   }
 });
 
-// Leave group
 app.delete("/groups/:groupId/members/:userId", async (req, res) => {
   try {
     const { groupId, userId } = req.params;
     const { userName } = req.body;
 
-    await db.execute(
-      `DELETE FROM group_members WHERE group_id = ? AND user_id = ?`,
-      [groupId, userId],
-    );
+    await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
 
-    // Send system message
-    await GroupMessage.create({
-      groupId,
-      senderId: "system",
-      senderName: "system",
-      text: `${userName} left the group`,
-      type: "system",
-    });
+    await GroupMessage.create({ groupId, senderId: "system", senderName: "system", text: `${userName} left the group`, type: "system" });
 
-    // Delete group if no members left
-    const [members] = await db.execute(
-      `SELECT COUNT(*) as count FROM group_members WHERE group_id = ?`,
-      [groupId],
-    );
-
-    if (members[0].count === 0) {
-      await db.execute(`DELETE FROM group_chats WHERE id = ?`, [groupId]);
+    const { data: remaining } = await supabase.from("group_members").select("id").eq("group_id", groupId);
+    if (!remaining || remaining.length === 0) {
+      await supabase.from("group_chats").delete().eq("id", groupId);
     }
 
     res.json({ message: "Left group" });
@@ -1281,21 +779,15 @@ app.delete("/groups/:groupId/members/:userId", async (req, res) => {
   }
 });
 
-// Rename group
 app.patch("/groups/:groupId/name", async (req, res) => {
   try {
-    const { name } = req.body;
-    await db.execute(`UPDATE group_chats SET name = ? WHERE id = ?`, [
-      name,
-      req.params.groupId,
-    ]);
+    await supabase.from("group_chats").update({ name: req.body.name }).eq("id", req.params.groupId);
     res.json({ message: "Group renamed" });
   } catch (error) {
     res.status(500).json({ error: "Failed to rename group" });
   }
 });
 
-// Send group message
 app.post("/groups/:groupId/messages", async (req, res) => {
   try {
     const { senderId, senderName, text, type } = req.body;
@@ -1312,40 +804,22 @@ app.post("/groups/:groupId/messages", async (req, res) => {
   }
 });
 
-// Get group messages
 app.get("/groups/:groupId/messages", async (req, res) => {
   try {
-    const messages = await GroupMessage.find({
-      groupId: req.params.groupId,
-    }).sort({ createdAt: 1 });
+    const messages = await GroupMessage.find({ groupId: req.params.groupId }).sort({ createdAt: 1 });
     res.json(messages);
   } catch (error) {
     res.status(500).json({ error: "Failed to get messages" });
   }
 });
 
-// ---------------------------------------
-//  START SERVER
-// ---------------------------------------
-connectMongoDB(); //connects to mongodb
-try {
-  app.listen(PORT, () =>
-    console.log(`✅ Server running on http://localhost:${PORT}`),
-  );
-} catch (err) {
-  console.error("Server startup error:", err);
-}
-
-app.get('/health', (req, res) => res.json({ ok: true }));
+// ── HEALTH & R2 TEST ────────────────────────────────────
+app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.get("/r2-test", async (req, res) => {
   try {
     const key = "debug/test.txt";
-    await uploadToR2({
-      key,
-      buffer: Buffer.from("hello r2"),
-      contentType: "text/plain",
-    });
+    await uploadToR2({ key, buffer: Buffer.from("hello r2"), contentType: "text/plain" });
     const url = await generateSignedUrl(key);
     res.json({ ok: true, key, url });
   } catch (e) {
@@ -1353,5 +827,10 @@ app.get("/r2-test", async (req, res) => {
   }
 });
 
-//notes:
-// Strip metadata from Client side.
+// ── START ───────────────────────────────────────────────
+connectMongoDB();
+try {
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+} catch (err) {
+  console.error("Server startup error:", err);
+}
