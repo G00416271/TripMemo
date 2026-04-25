@@ -15,6 +15,7 @@ import signupImage from "./assets/signup_img.png";
 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const { login } = useAuth();
+  const { loginWithRedirect } = useAuth0();
 
   const [email, setEmail] = useState("");
   const [userName, setUsername] = useState("");
@@ -414,6 +415,17 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
             </div>
 
             <div className="social-auth-buttons">
+  <button
+    className="social-auth-btn"
+    onClick={() => loginWithRedirect({
+      authorizationParams: { connection: "google-oauth2" }
+    })}
+  >
+    <FcGoogle size={24} />
+  </button>
+  </div>
+
+            {/* <div className="social-auth-buttons">
 
                <button 
     className="social-auth-btn"
@@ -424,7 +436,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
     })}
   >
     <FcGoogle size={24} />
-  </button>
+  </button> */}
               {/* <button className="social-auth-btn">
                 <FcGoogle size={24} />
               </button> */}
@@ -437,7 +449,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
               <button className="social-auth-btn">
                 <FaApple size={24} />
               </button> */}
-            </div>
+            {/* </div> */}
 
             <p className="auth-switch-text">
               Already have an account?{" "}
