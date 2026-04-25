@@ -40,7 +40,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
   //   return data;
   // };
 
-const { loginWithRedirect } = useAuth0();
+// const { loginWithRedirect } = useAuth0();
 
   const doLogin = async (email, userName, password) => {
   const res = await fetch("https://tripmemo-11.onrender.com/login", {
