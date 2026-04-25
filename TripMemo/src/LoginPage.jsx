@@ -294,7 +294,7 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
         email,
         password,
       });
-      onSignup(data.username);
+      onSignup(data.username, data.user_id);
     } catch (err) {
       alert(err.message);
     }
