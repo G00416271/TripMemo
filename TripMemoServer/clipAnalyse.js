@@ -12,10 +12,8 @@ export function clipAnalyse(images) {
     py.stdout.on("data", d => out += d.toString());
     py.stderr.on("data", d => err += d.toString());
 
-    // Catch stdin write errors (EOF = Python died before reading)
     py.stdin.on("error", e => {
       if (e.code !== "EPIPE" && e.code !== "EOF") reject(new Error(`stdin error: ${e.message}`));
-      // otherwise swallow — close handler will report the real error
     });
 
     py.on("error", e => reject(new Error(`Spawn error: ${e.message}`)));
@@ -31,22 +29,22 @@ export function clipAnalyse(images) {
 
     py.on("close", code => {
       if (code !== 0) {
-        // Print Python's stderr so you can see the real crash reason
         return reject(new Error(`Python exited ${code}:\n${err}`));
       }
       try {
-        resolve(JSON.parse(out.trim()));
+        const jsonMatch = out.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) throw new Error("No JSON array found in output");
+        resolve(JSON.parse(jsonMatch[0]));
       } catch {
         reject(new Error("Bad JSON from Python:\n" + out));
       }
     });
 
-    // Write AFTER attaching close handler
     try {
       py.stdin.write(JSON.stringify(validImages));
       py.stdin.end();
     } catch (e) {
-      // Will be caught by close handler above
+      // handled by close handler
     }
   });
 }
