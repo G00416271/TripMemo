@@ -12,6 +12,8 @@ import { useAuth0 } from "@auth0/auth0-react";
 // Import images
 import loginImage from "./assets/login_img.png";
 
+import signupImage from "./assets/signup_img.png";
+
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const { login } = useAuth();
   const { loginWithRedirect } = useAuth0();
