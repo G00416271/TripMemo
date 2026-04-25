@@ -11,7 +11,6 @@ import { useAuth0 } from "@auth0/auth0-react";
 
 // Import images
 import loginImage from "./assets/login_img.png";
-import signupImage from "./assets/signup_img.png";
 
 export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const { login } = useAuth();
@@ -23,6 +22,7 @@ export default function LoginPage({ onLogin, onSwitchToSignup }) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
+  
   // const doLogin = async (email, userName, password) => {
   //   const fd = new FormData();
   //   fd.append("email", email);
@@ -200,10 +200,11 @@ const { loginWithRedirect } = useAuth0();
 
 // SignupPage.jsx
 export function SignupPage({ onSignup, onSwitchToLogin }) {
+  const { loginWithRedirect } = useAuth0();
+ 
   const [username, setUsername] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
