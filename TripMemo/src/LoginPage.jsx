@@ -135,17 +135,17 @@ const { loginWithRedirect } = useAuth0();
               </div>
 
               <div className="auth-extras">
-                <button type="button" className="forgot-link">
+                {/* <button type="button" className="forgot-link">
                   Forgot password?
-                </button>
-                <label className="remember-checkbox">
+                </button> */}
+                {/* <label className="remember-checkbox">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                   />
-                  <span>Remember me</span>
-                </label>
+                   <span>Remember me</span> 
+                </label> */}
               </div>
 
               {/* Spacer to match signup form height */}
@@ -414,15 +414,29 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
             </div>
 
             <div className="social-auth-buttons">
-              <button className="social-auth-btn">
+
+               <button 
+    className="social-auth-btn"
+    onClick={() => loginWithRedirect({
+      authorizationParams: {
+        connection: "google-oauth2"
+      }
+    })}
+  >
+    <FcGoogle size={24} />
+  </button>
+              {/* <button className="social-auth-btn">
                 <FcGoogle size={24} />
-              </button>
-              <button className="social-auth-btn">
+              </button> */}
+
+
+              
+              {/* <button className="social-auth-btn">
                 <FaFacebook size={24} color="#1877F2" />
               </button>
               <button className="social-auth-btn">
                 <FaApple size={24} />
-              </button>
+              </button> */}
             </div>
 
             <p className="auth-switch-text">
