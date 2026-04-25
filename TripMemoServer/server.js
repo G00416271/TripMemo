@@ -434,13 +434,23 @@ app.get("/neoping", async (req, res) => {
 // ── SOS CONTACTS ────────────────────────────────────────
 app.get("/sos-contacts/:userId", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data: contacts, error } = await supabase
       .from("sos_contacts")
-      .select("users!sos_contacts_friend_id_fkey(user_id, username, first_name, last_name)")
+      .select("friend_id")
       .eq("user_id", req.params.userId);
 
     if (error) throw error;
-    res.json(data.map((r) => r.users));
+    if (!contacts || contacts.length === 0) return res.json([]);
+
+    const friendIds = contacts.map((c) => c.friend_id);
+
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("user_id, username, first_name, last_name")
+      .in("user_id", friendIds);
+
+    if (usersError) throw usersError;
+    res.json(users);
   } catch (error) {
     console.error("Get SOS contacts error:", error);
     res.status(500).json({ error: "Failed to get SOS contacts" });
